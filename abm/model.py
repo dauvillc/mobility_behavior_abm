@@ -89,6 +89,22 @@ class ABM:
         else:
             self.test_characs = pop_test_characteristics
 
+        # DEFAULTS
+        self.set_default_param("recovery_mean_time", 8.0)
+        self.set_default_param("recovery_std_time", 2.0)
+
+    def set_default_param(self, param, value):
+        """
+        Checks if a parameter was specified by the user; otherwise sets
+        its value to a default one.
+        Parameters
+        ----------
+        param: str, name of the parameter.
+        value: Default value to set.
+        """
+        if param not in self.params:
+            self.params[param] = value
+
     def init_simulation(self, infected_mask, seed=None):
         """
         (Re)initializes the simulation, while conserving the model's
@@ -160,8 +176,11 @@ class ABM:
 
         Returns
         -------
-        A new boolean array of shape (n_agents) such that NI[i] is True if and only
-        if agent i became infected during that period.
+        A pair:
+        - A float array of shape (n_agents) giving the probability that had every
+            had agent to become infected;
+        - A new boolean array of shape (n_agents) such that NI[i] is True if and only
+            if agent i became infected during this period.
         """
         # The following block computes the fractions of infected visitors at each facility.
         infected_fractions = np.zeros(self.n_facilities, dtype=np.float)
@@ -205,7 +224,7 @@ class ABM:
         new_inf_mask = new_inf_mask & (~self.infected_mask)
         # Agents that have recovered cannot become infected again
         new_inf_mask = new_inf_mask & (~self.recovered_mask)
-        return new_inf_mask
+        return infection_probas, new_inf_mask
 
     def draw_recovery_times(self, new_inf_ids: np.array):
         """
@@ -239,24 +258,32 @@ class ABM:
         # Store the info about recoveries
         self.recoveries.append(recovered_indexes.shape[0])
 
-    def apply_testing(self):
+    def apply_testing(self, daily_inf_probas):
         """
         Applies a testing model over the full population. The method
         updates the self.testing_days array, which contains the number of
         days since the agents were last tested positive (or -1 otherwise).
+        Parameters
+        ----------
+        daily_inf_probas: Float array of shape (n_agents). For an agent i,
+            daily_inf_probas[i] must describe the probability that agent i
+            has had over the whole day of becoming infected. For example, it can
+            be the average of the probability of being infected over all periods.
         Returns
         -------
         A pair of integers
         (Number of tests performed,
          Number of positive tests)
         """
-        # Every agent has a base probability to get tested each day.
-        # Being infectious with symptoms increases the probability of
-        # being tested, of a parameterized amount.
+        # The probability of being tested is defined as
+        # P(test) = Beta_base + Beta_proba_inf * P(inf) + beta1 * X1 + beta2 * X2 + ...
+        # The second product is so that an agent that has had a high probability of being infected
+        # (for example because they've had a risky behavior) is more likely to get tested.
+        # X1, X2, .. are socio-economic and health characteristics.
         probas = np.full(self.n_agents, self.params['base_test_proba'])
-        probas[self.infected_mask] += self.params['inf_test_proba']
+        probas += self.params['test_inf_proba_factor'] * daily_inf_probas
 
-        # Adds the characteristics (obtained from the betas) to the probabilities
+        # Adds the characteristics (obtained from the socio-eco and health) to the probabilities
         if len(self.test_characs) > 0:
             probas += self.test_characs
 
@@ -305,8 +332,13 @@ class ABM:
         if self.params['apply_activity_reduction']:
             self.apply_activity_reduction()
 
-        # Actual simulation of all periods within the day
+        # Number of infections over the day
         daily_infections = 0
+        # This will contain the average probability of being infected over the day:
+        # after every period, sum the probability of being infected during that period;
+        # At the end of the day, divide by the number of periods.
+        daily_inf_probas = np.zeros(self.n_agents)
+        # Actual simulation of all periods within the day
         for period in range(self.n_periods):
             # Simulates the recoveries
             self.apply_recovery()
@@ -315,12 +347,16 @@ class ABM:
             if force_infections is not None:
                 # The proba of becoming infected is uniform over all agents, and is divided
                 # by the number of periods to amount for force_infections over the full day.
-                inf_proba = (force_infections / self.n_periods) / self.n_agents
-                new_inf_mask = self.rng.random(self.n_agents) < inf_proba
+                inf_probas = (force_infections / self.n_periods) / self.n_agents
+                new_inf_mask = self.rng.random(self.n_agents) < inf_probas
                 new_inf_mask = new_inf_mask & (~self.infected_mask) & (~self.recovered_mask)
             else:
                 # Simulates the infections
-                new_inf_mask = self.apply_infections(period)
+                inf_probas, new_inf_mask = self.apply_infections(period)
+
+            # Adds the probabilities of infection to the daily sum
+            daily_inf_probas += inf_probas
+
             # Saves the IDs of agents who've just become infected
             new_inf_ids = np.where(new_inf_mask)[0]
             self.infected_ids.append(new_inf_ids)
@@ -339,10 +375,13 @@ class ABM:
             # Period update
             self.period += 1
 
-        # Applies the testing policy
-        n_tests, n_positive_tests = self.apply_testing()
+        # Converts the sum [P_p(inf) over all periods p] to the mean
+        daily_inf_probas /= self.n_periods
 
-        # Memorizes the day's outcome
+        # Applies the testing policy
+        n_tests, n_positive_tests = self.apply_testing(daily_inf_probas)
+
+        # Memorizes the day's outcome: infections, positive tests
         self.daily_new_infections.append(daily_infections)
         self.daily_positive_tests.append(n_positive_tests)
         self.daily_tests.append(n_tests)

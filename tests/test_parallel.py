@@ -19,7 +19,7 @@ if __name__ == "__main__":
         'inf_fraction_param': 0.045,
         'test_params': {'age': 0.001},
         'base_test_proba': 0.1,
-        'inf_test_proba': 0.5,
+        'test_inf_proba_factor': 0.3,
         'apply_activity_reduction': False
     }
     period_length = 60
