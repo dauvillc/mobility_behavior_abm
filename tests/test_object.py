@@ -14,14 +14,9 @@ if __name__ == "__main__":
     params = {
         'recovery_mean_time': 8.0,
         'recovery_std_time': 2.0,
-        'exposition_mean_time': 4.5,
-        'exposition_std_time': 1.5,
-        'include_exposed_state': True,
-        'soceco_attributes': ['age'],
-        'soceco_params': np.array([0.001]),
+        'inf_params': {'age': 0.001},
         'inf_fraction_param': 0.045,
-        'test_attributes': ['age'],
-        'test_params': np.array([0.5]),
+        'test_params': {'age': 0.001},
         'base_test_proba': 0.1,
         'inf_test_proba': 0.5,
         'apply_activity_reduction': False
