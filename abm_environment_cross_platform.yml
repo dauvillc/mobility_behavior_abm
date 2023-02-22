@@ -1,0 +1,17 @@
+name: abm
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - scipy==1.9.3
+  - pandas=1.5.2
+  - scikit-learn
+  - tqdm
+  - seaborn
+  - emcee
+  - jupyterlab
+  - networkx
+  - ipywidgets
+  - imageio
+  - plotly
+  - python-kaleido
