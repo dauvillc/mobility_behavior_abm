@@ -26,6 +26,9 @@ DEST_FILE = "data/preprocessed/preprocessed_activities.csv.gz"
 if __name__ == "__main__":
     # PARSING OPTIONS
     optparser = OptionParser()
+    optparser.add_option('--output', '-o', action="store", dest="output_file",
+                         default=DEST_FILE, help="Where to write the results. The file should have the .csv.gz"
+                                                 "extension")
     optparser.add_option('--chunksize', action="store", dest="chunksize", type="int", default=1000000,
                          help="Number of CSV rows to process at once (Default: 1,000,000). A "
                               "larger value will lead to a shorter processing time, but requires more"
@@ -45,13 +48,17 @@ if __name__ == "__main__":
                          help="pandas string period indicator, such as 'H' for an hour or '30T' for 30 minutes. "
                               "Indicates the length of the time periods when approximating the activities' starting"
                               "and ending times. For example, 'H' will generate to periods such as '09:00' to '10:00'.")
+    optparser.add_option('--save_activity_times', action="store_true", dest="save_activity_times", default=False,
+                         help="If specified, the script will instead save a dataset containing the preprocessed"
+                              " activities with how much time the agents spent at them. The script won't convert the"
+                              " activity times to periods.")
     (options, args) = optparser.parse_args()
 
     print(f"Beginning preprocessing with a chunksize of {options.chunksize}...")
     # We'll write in the results file in 'append' mode, hence not overwriting the file
     # if it already exists.
-    if os.path.exists(DEST_FILE):
-        print("The destination file ", DEST_FILE, " already exists.")
+    if os.path.exists(options.output_file):
+        print("The destination file ", options.output_file, " already exists.")
         sys.exit(0)
 
     # We've got the age of every individual (i.e. id) in the attributes file.
@@ -72,7 +79,7 @@ if __name__ == "__main__":
     # The "header" variable will make pandas write the DF's header row, but only the first time
     write_header = True
     with pd.read_csv(MATSIM_ACTIVITIES_PATH, index_col=0, chunksize=options.chunksize) as full_csv:
-        for it, activities_df in tqdm(enumerate(full_csv), total=42000000/options.chunksize):
+        for it, activities_df in tqdm(enumerate(full_csv), total=42000000 / options.chunksize):
             # We'll need to remove the rows in which the facility is null
             activities_df = activities_df[activities_df['facility'].notna()]
             # Removes unused columns
@@ -104,28 +111,36 @@ if __name__ == "__main__":
             activities_df['end_time'] = activities_df['end_time'].fillna(
                 pd.Timestamp(year=1900, month=1, day=1, hour=23,
                              minute=59, second=59))
-            # Finally, we'll transform the raw, precise times (HH:MM) to periods. For example, 09:54 becomes
-            # 09:00 if a period of 1 hour is used. 09:00 indicates the period 09:00 to 10:00.
-            # Use 'H' for an hour or '30T' for 30 minutes.
-            activities_df['start_time'] = activities_df['start_time'].dt.floor(options.period_length)
-            activities_df['end_time'] = activities_df['end_time'].dt.floor(options.period_length)
 
-            if options.explode_periods:
-                # Explodes the dataframe based on the time period. For example an activity starting at 10:00 and
-                # ending 10:30, with a period of 10 min, will result in 3 identical rows (one for 10:00, for 10:10,
-                # and 10:20). The resulting dataframe can be MUCH larger if the time period is especially short.
+            # Optional: if required, save the intermediary results to the destination file and do not
+            # proceed to converting the activities to periods.
+            if options.save_activity_times:
+                # We add a column which is the duration of the activity
+                activities_df['duration'] = activities_df['end_time'] - activities_df['start_time']
+            else:
+                # Finally, we'll transform the raw, precise times (HH:MM) to periods. For example, 09:54 becomes
+                # 09:00 if a period of 1 hour is used. 09:00 indicates the period 09:00 to 10:00.
+                # Use 'H' for an hour or '30T' for 30 minutes.
+                activities_df['start_time'] = activities_df['start_time'].dt.floor(options.period_length)
+                activities_df['end_time'] = activities_df['end_time'].dt.floor(options.period_length)
 
-                # The following creates a columns whose values are lists of periods from start_time to end_time
-                activities_df['period'] = activities_df.apply(
-                    lambda row: pd.date_range(row['start_time'], row['end_time'], freq=options.period_length), axis=1)
-                # We can now drop the start_time and end_times columns (and we should to avoid multiplying the rows
-                # after exploding !)
-                activities_df = activities_df.drop(['start_time', 'end_time'], axis=1)
-                # This explodes the dataset with regard to the lists just created
-                activities_df = activities_df.explode('period')
-                activities_df.head(10)
+                if options.explode_periods:
+                    # Explodes the dataframe based on the time period. For example an activity starting at 10:00 and
+                    # ending 10:30, with a period of 10 min, will result in 3 identical rows (one for 10:00, for 10:10,
+                    # and 10:20). The resulting dataframe can be MUCH larger if the time period is especially short.
+
+                    # The following creates a columns whose values are lists of periods from start_time to end_time
+                    activities_df['period'] = activities_df.apply(
+                        lambda row: pd.date_range(row['start_time'], row['end_time'], freq=options.period_length),
+                        axis=1)
+                    # We can now drop the start_time and end_times columns (and we should to avoid multiplying the rows
+                    # after exploding !)
+                    activities_df = activities_df.drop(['start_time', 'end_time'], axis=1)
+                    # This explodes the dataset with regard to the lists just created
+                    activities_df = activities_df.explode('period')
+                    activities_df.head(10)
 
             # Saves the preprocessed data
-            activities_df.to_csv(DEST_FILE, mode="a", header=write_header)
+            activities_df.to_csv(options.output_file, mode="a", header=write_header)
             # After we wrote once into the results file, do not write the header any once more.
             write_header = False
