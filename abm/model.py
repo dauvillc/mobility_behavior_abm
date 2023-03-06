@@ -6,6 +6,7 @@ in Switzerland.
 import numpy as np
 import pandas as pd
 import abm.characteristics as ch
+from copy import deepcopy
 from abm.math_tools import compute_lognormal_params
 
 
@@ -46,7 +47,7 @@ class ABM:
         -------
 
         """
-        self.params = params
+        self.params = deepcopy(params)
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
 
@@ -65,7 +66,6 @@ class ABM:
             self.visitors_counts = [v.sum(axis=1) for v in self.visit_matrices_coo]
         else:
             self.visitors_counts = visitors_counts
-
 
         # Loads the population socio-eco attributes if required
         if population_dataset is None:
@@ -329,7 +329,7 @@ class ABM:
         """
 
         # Applies the activity reduction policy
-        if self.params['apply_activity_reduction']:
+        if 'apply_activity_reduction' in self.params and self.params['apply_activity_reduction']:
             self.apply_activity_reduction()
 
         # Number of infections over the day
@@ -402,7 +402,8 @@ class ABM:
 
         Returns
         -------
-        Two lists:
+        Three lists:
+            - The daily number of new infections;
             - The daily number of tests performed;
             - The daily number of positive tests.
         """
@@ -413,7 +414,7 @@ class ABM:
             self.iterate_day()
         print("Simulation ended")
 
-        return self.daily_tests, self.daily_positive_tests
+        return self.daily_new_infections, self.daily_tests, self.daily_positive_tests
 
     def force_simulation_start(self, daily_infections):
         """
@@ -444,7 +445,6 @@ class ABM:
             self.iterate_day(force_infections=daily_forced_inf)
 
         return self.daily_positive_tests
-
 
     def get_weekly_cases(self):
         """
