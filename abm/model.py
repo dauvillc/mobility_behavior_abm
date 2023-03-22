@@ -6,6 +6,7 @@ in Switzerland.
 import numpy as np
 import pandas as pd
 import abm.characteristics as ch
+from collections import defaultdict
 from copy import deepcopy
 from abm.math_tools import compute_lognormal_params
 
@@ -30,6 +31,7 @@ class ABM:
         activities_data: Pair (LV, LF) as returned by contacts.load_period_activities().
             - LV is the list of sparse visit matrices for every period;
             - LF is the list of locations of all agents during each period.
+            - LT is the list of activity types of all acitvities during each period.
         population_dataset: DataFrame, optional. Dataset containing the agents' attributes.
             If None, it will be loaded.
         pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
@@ -51,11 +53,11 @@ class ABM:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
 
-        # Load the activity matrices, in the COO format; And the
-        # location of every agent. Note: any modification, e.g. for activity
-        # reduction, must be made on a copy of those.
-        self.visit_matrices_coo, self.agent_facilities_original = activities_data
-        self.agent_facilities = self.agent_facilities_original
+        # Load the activity matrices, in the COO format; the
+        # location of every agent; and the activity types.
+        # Note: any modification, e.g. for activity reduction, must be made on a copy of those.
+        self.visit_matrices_coo, self.agent_facilities_original, self.activity_types = activities_data
+        self.agent_facilities = self.agent_facilities_original.copy()
 
         # Deduces some size constants of the simulation
         self.n_facilities, self.n_agents = self.visit_matrices_coo[0].shape
@@ -121,7 +123,8 @@ class ABM:
         -------
         """
         # Initialize general vars about the simulation
-        self.period, self.n_days = 0, 1
+        # The day starts at one because day 0 is the initial conditions
+        self.period, self.day, self.n_days = 0, 1, 1
 
         # Initialize the agents' status
         self.infected_mask = infected_mask.copy()
@@ -146,6 +149,13 @@ class ABM:
         self.new_infections = [initial_infections]
         self.daily_new_infections = [initial_infections]
         self.recoveries = [0]
+
+        # Activity reduction data structures
+        # The following is a dictionary {day: activity_reduction_lifts}
+        # such that for each day, one can know which activity reductions should be
+        # lifted at the end of it. An "activity reduction lift" is defined as a set
+        # of targeted agents and activity types that should be cancelled.
+        self.activity_reduction_schedule = defaultdict(list)
 
         # Resets the RNG
         if seed is None:
@@ -184,7 +194,9 @@ class ABM:
         """
         # The following block computes the fractions of infected visitors at each facility.
         infected_fractions = np.zeros(self.n_facilities, dtype=np.float)
-        # Begins by loading the number and infected and non-infected visitors
+        # Begins by loading the number of visitors at every facility during that period.
+        # That number was pre-computed to avoid re-computing it every time, to save time
+        # If an agent has their mobility reduced, these counts have to take it into account
         visitors_counts = self.visitors_counts[period]
         # Retrieves the facilities at which the infected agents are located
         infected_agents_locations = self.agent_facilities[period][self.infected_mask]
@@ -219,6 +231,7 @@ class ABM:
         # Infects the agents with the just calculated probabilities
         new_inf_mask = self.rng.random(self.n_agents) < infection_probas
         # Agents that are in the facility "-1" are actually at an unknown facility
+        # or their activity has been canceled due to mobility restriction
         new_inf_mask = new_inf_mask & (agent_facilities > -1)
         # Agents that are already infected cannot become infected
         new_inf_mask = new_inf_mask & (~self.infected_mask)
@@ -304,13 +317,78 @@ class ABM:
         n_positive_tests = tested_positive.sum()
         return n_tests, n_positive_tests
 
-    def apply_activity_reduction(self):
+    def reduce_activity(self, agent_ids, activity_types, n_days):
         """
-        Applies the activity reduction policy.
+        Restricts the mobility of a given set of agents, for a given set of activity types,
+        until a given date.
+        Parameters
+        ----------
+        agent_ids: np array of integers; IDs of the agents targeted by the activity reduction.
+        activity_types: iterable of strings; activity types targeted by the reduction.
+        n_days: Integer, number of days until the reduction is lifted.
+
+        Returns
+        -------
         """
-        # Isolates agents who haven't been tested positive less than 5 days ago.
-        non_confined_agents = (self.testing_days < 0) | (self.testing_days > 5)
-        return
+        # reductions_information is a list that, for each period, contains:
+        # - the ids of the agents that were impacted;
+        # - the locations which were impacted;
+        # - how many visitors each location lost because of that reduction (and need to be re-added).
+        reductions_information = []
+
+        for period in range(self.n_periods):
+            # Isolates the agents that are both targeted by the reduction AND
+            # that are performing a targeted activity type during that period.
+            performed_act_types = self.activity_types[period][agent_ids]
+            targeted_activities = np.isin(performed_act_types, activity_types)
+            agent_ids = agent_ids[targeted_activities]
+            # Retrieves the facilities of the agents that are finally concerned
+            # by the reduction.
+            targeted_agents_locations = self.agent_facilities[period][agent_ids]
+
+            # Reduces the number of visitors at the targeted agents' facilities
+            locations, visitor_reductions = np.unique(targeted_agents_locations, return_counts=True)
+            self.visitors_counts[period][locations] -= visitor_reductions
+
+            # Sets the targeted agents' locations to -1, which means no contacts
+            self.agent_facilities[period][agent_ids] = -1
+
+            # Saves the activity reduction information for the schedule
+            reductions_information.append((agent_ids, locations, visitor_reductions))
+
+        # Computes the ending day of the reduction
+        end_date = self.day + n_days
+        # Adds this reduction to the activity reduction schedule, which will take
+        # care of removing the reduction at the end date.
+        self.activity_reduction_schedule[end_date].append(
+            reductions_information
+        )
+
+    def check_activity_reduction_schedule(self):
+        """
+        Check the activity reduction schedule for reductions that should be lifted.
+        All activity reductions that have reached their ending date are removed.
+        Returns
+        -------
+        """
+        # Retrieves all activity reductions that end today
+        activity_reductions = self.activity_reduction_schedule[self.day]
+        for activity_reduction in activity_reductions:
+            # When the activities were cancelled, the agents that were targeted were
+            # counted by facility. For every facility f, the number of visitors of f that were
+            # cancelled was substracted to visitors_counts[f].
+            # We now need to re-add those counts to visitors_counts so that it goes back to normal.
+            # activity_reduction is a list that, for each period, contains:
+            # - the ids of the agents that were impacted;
+            # - the locations which were impacted;
+            # - how many visitors each location lost because of that reduction (and need to be re-added).
+            for period, (agent_ids, locations, visitor_reductions) in enumerate(activity_reduction):
+                self.visitors_counts[period][locations] += visitor_reductions
+                # The agents whose activities had been cancelled had had their facility set to -1
+                # We'll reset those to their normal values
+                self.agent_facilities[period][agent_ids] = self.agent_facilities_original[period][agent_ids]
+        # We can now remove the schedule of today, to free space
+        del self.activity_reduction_schedule[self.day]
 
     def iterate_day(self, force_infections=None):
         """
@@ -327,10 +405,8 @@ class ABM:
         - N is the amount of new infections after each period;
         - T is the total number of infected people after each period.
         """
-
-        # Applies the activity reduction policy
-        if 'apply_activity_reduction' in self.params and self.params['apply_activity_reduction']:
-            self.apply_activity_reduction()
+        # Updates the date counter
+        self.day += 1
 
         # Number of infections over the day
         daily_infections = 0
@@ -340,6 +416,7 @@ class ABM:
         daily_inf_probas = np.zeros(self.n_agents)
         # Actual simulation of all periods within the day
         for period in range(self.n_periods):
+            self.period = period
             # Simulates the recoveries
             self.apply_recovery()
             # If a number of new infections is forced, we randomly draw some agents
@@ -372,10 +449,7 @@ class ABM:
             # Draws the recovery times for the newly infected people
             self.draw_recovery_times(new_inf_ids)
 
-            # Period update
-            self.period += 1
-
-        # Converts the sum [P_p(inf) over all periods p] to the mean
+        # Converts the sum [P_p(inf) over all periods p] to the daily average
         daily_inf_probas /= self.n_periods
 
         # Applies the testing policy
