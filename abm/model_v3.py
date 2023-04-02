@@ -138,8 +138,11 @@ class ABM:
         self.population.reset()
 
         # Initializes the timers
-        # The following timer will count, for every infected agent, how many period they still have to
-        # spend before they become "recovered". If an agent is not infected, the value is -1.
+        # The infection timer stores, for every infected agent, how many periods they
+        # still have to spend before they become recovered.
+        # The timer is implemented as an array of length (n_agents,), which contains
+        # for every agent either a positive integer, or a negative value to indicate
+        # that the agent is not infected.
         self.infection_timer = np.full(self.n_agents, -1)
 
     def set_infected(self, agent_ids):
@@ -214,6 +217,15 @@ class ABM:
             over the day. In this case, the forced infections are uniformly spread over the periods.
         """
         for period in range(self.n_periods):
+            # === Recovery process ====================
+            # First: retrieve the IDs of all currently infected agents
+            infected_agents = self.population.get_infected_agents()
+            # for all agents whose infection time has reached zero, they recover
+            recovering_agents = infected_agents[self.infection_timer[infected_agents] == 0]
+            self.population.set_agents_state(recovering_agents, "recovered")
+            # for all still infected agents, reduce their recovery time by one period
+            self.infection_timer[infected_agents] -= 1
+
             # === Infection process ===================
             if n_forced_infections is not None:
                 # The forced infections are uniformly spread over the periods. To do so,
@@ -232,6 +244,8 @@ class ABM:
             # === Storing per-period results ==========
             # Number of new infections
             self.results.store_per_period("new infections", infected_agents.shape[0])
+            # Number of currently infected agents
+            self.results.store_per_period("infected agents", self.population.get_state_count("infected"))
 
             # === Variables update ====================
             self.period = (1 + self.period) % self.n_periods

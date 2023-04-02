@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     # ACTUAL TEST
     # Tests the forced simulation start
-    forced_infections = [100, 200, 300, 400, 500]
+    forced_infections = [100, 200, 300, 400, 500]  # dummy values
     abm.force_simulation_start(forced_infections)
     # Some basic verifications regarding the length and values of simulation variables
     assert abm.day == len(forced_infections)  # abm.day starts at zero
@@ -40,5 +40,15 @@ if __name__ == "__main__":
     expected_infections = sum(forced_infections)
     assert expected_infections * 0.9 <= total_infections <= expected_infections * 1.1
 
+    # Tests that the ABM resets well
+    forced_infections = [100] + [0] * 50  # Includes 50 days without any infection
+    abm.force_simulation_start(forced_infections)
+    new_infections_per_period = abm.results.get_per_period("new infections")
+    total_infections = sum(new_infections_per_period)
+    expected_infections = sum(forced_infections)
+    assert expected_infections * 0.9 <= total_infections <= expected_infections * 1.1
+    # The following checks that there are no infected agents in the last days
+    infected_agents_count = abm.results.get_per_period("infected agents")
+    assert sum(infected_agents_count[-10:]) == 0
 
     print("Test successful !")

@@ -133,7 +133,7 @@ class Population:
         -------
         An array containing the IDs of all currently infected agents.
         """
-        return np.array(list(self.infected_agents_ids))
+        return np.array(list(self.infected_agents_ids), dtype=np.int)
 
     def set_agents_state(self, agent_ids: np.array, state_name: str):
         """
