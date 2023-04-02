@@ -44,6 +44,7 @@ if __name__ == "__main__":
     assert population.get_state_count("recovered") == 0
     assert population.get_state_count("infected") == 100
     assert population.get_state_count("susceptible") == n_agents - 100
+    assert len(population.infected_agents_ids) == 100
     assert population.mobility.infected_visitors[0].sum() == 100
 
     # Tries to set the state of a part of that group to "recovered"
@@ -51,6 +52,7 @@ if __name__ == "__main__":
     assert population.get_state_count("recovered") == 10
     assert population.get_state_count("infected") == 90
     assert population.get_state_count("susceptible") == n_agents - 100
+    assert len(population.infected_agents_ids) == 90
     assert population.mobility.infected_visitors[-1].sum() == 90
 
     # Tests that the counters of infected visitors function
@@ -66,6 +68,7 @@ if __name__ == "__main__":
     population.reset()
     assert population.get_state_count("infected") == 0
     assert population.get_state_count("recovered") == 0
+    assert len(population.infected_agents_ids) == 0
     # verifies that the mobility is identical to the original one.
     assert (population.mobility.get_locations(0) == activity_data[1][0]).all()
 

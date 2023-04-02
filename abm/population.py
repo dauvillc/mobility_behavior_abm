@@ -67,8 +67,10 @@ class Population:
         # Initializes the Mobility object
         self.mobility = Mobility(activity_data)
 
-        # Initializes all agents to "susceptible"
+        # Defines some objects that are initialized in reset()
         self.states, self.state_counts = None, None
+        self.infected_agents_ids = None
+        # Initializes all agents to "susceptible"
         self.reset()
 
     def reset(self):
@@ -87,6 +89,12 @@ class Population:
         # agents are in each state, at all moments.
         self.state_counts = np.full(n_states, 0)
         self.state_counts[states_dict['susceptible']] = self.n_agents
+        # The following variable is a set that must, at any moment, contain
+        # the IDs of the infected agents. The idea behind it is that the number of
+        # infected agents at a time is small compared to the total number of agents. Thus,
+        # we want to be able to easily retrieve the IDs of the infected agents without checking
+        # every agent one by one.
+        self.infected_agents_ids = set()
         # Resets the Mobility object
         self.mobility.reset()
 
@@ -119,6 +127,14 @@ class Population:
         """
         return agent_ids[np.where(self.states[agent_ids] == states_dict[state])[0]]
 
+    def get_infected_agents(self):
+        """
+        Returns
+        -------
+        An array containing the IDs of all currently infected agents.
+        """
+        return np.array(list(self.infected_agents_ids))
+
     def set_agents_state(self, agent_ids: np.array, state_name: str):
         """
         Sets a specific state for a given set of agents.
@@ -137,6 +153,10 @@ class Population:
         # visitors per facility.
         formerly_infected = self.get_subset_in_state(agent_ids, "infected")
         self.mobility.remove_infected_visitors(formerly_infected)
+        # We also need to remove all agents that used to be infected from the infected
+        # agents set:
+        for id in formerly_infected:
+            self.infected_agents_ids.remove(id)
         # We can now set the new state
         self.states[agent_ids] = state
         # And don't forget to add the agents to the new state's counter
@@ -146,3 +166,6 @@ class Population:
         # in the count of infected visitors per facility.
         if state_name == 'infected':
             self.mobility.add_infected_visitors(agent_ids)
+            # We also need to add the agents to the set of infected agents
+            for id in agent_ids:
+                self.infected_agents_ids.add(id)
