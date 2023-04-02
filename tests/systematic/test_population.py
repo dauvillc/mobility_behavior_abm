@@ -20,6 +20,8 @@ if __name__ == "__main__":
     params = {
         'inf_params': {'age': 0.000},
         'test_params': {'age': 0.000},
+        'recovery_mean_time': 8.0,
+        'recovery_std_time': 2.0
     }
     inf_characs = ch.compute_characteristics(population_df, params['inf_params'])
     test_characs = ch.compute_characteristics(population_df, params['test_params'])
@@ -30,7 +32,8 @@ if __name__ == "__main__":
                             population_df,
                             inf_characs,
                             test_characs,
-                            activity_data)
+                            activity_data,
+                            params)
 
     assert population.get_state_count("susceptible") == n_agents
 
@@ -58,5 +61,12 @@ if __name__ == "__main__":
     population.mobility.remove_infected_visitors(infected_agents)
     population.mobility.add_infected_visitors(infected_agents)
     assert population.mobility.infected_visitors == x
+
+    # Tests the reset methods
+    population.reset()
+    assert population.get_state_count("infected") == 0
+    assert population.get_state_count("recovered") == 0
+    # verifies that the mobility is identical to the original one.
+    assert (population.mobility.get_locations(0) == activity_data[1][0]).all()
 
     print("Test successful !")
