@@ -5,7 +5,7 @@ Implements the Population clas, which stores all information about the agents, i
 import numpy as np
 import pandas as pd
 from abm.mobility import Mobility
-
+from abm.recovery import draw_recovery_times
 
 # Dictionary that maps the names of the states to integers
 states_dict = {
@@ -23,13 +23,18 @@ class Population:
     This includes their characteristics, as well as their disease state.
     The class also takes care of maintaining an internal count of the numbers of agents in each state,
     and avoids useless re-computations.
+    Finally, the class contains the times before infected agents become recovered, as well
+    as the times since the agents were last tested positive.
     """
+
     def __init__(self,
                  n_agents,
                  population_dataset,
                  pop_inf_characteristics,
                  pop_test_characteristics,
-                 activity_data):
+                 activity_data,
+                 params,
+                 rng=None):
         """
         Parameters
         ----------
@@ -46,25 +51,47 @@ class Population:
             - LV is the list of sparse visit matrices for every period;
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
+        params: dictionary, the same as the one passed to the ABM object.
+        rng: optional, specific numpy random number generator to use.
         """
         self.n_agents = n_agents
         self.population_dataset = population_dataset
         self.pop_inf_characteristics = pop_inf_characteristics
         self.pop_test_characteristics = pop_test_characteristics
-
-        # Initializes the state of all agents to "Susceptible"
-        # self.states is an array of shape (n_agents,) whose elements are integers that
-        # correspond to disease states, following states_dict[].
-        self.states = np.full(n_agents, states_dict['susceptible'], dtype=np.int)
-        # self.state_counts is an array of shape (n_states) that counts how many
-        # agents are in each state, at all moments.
-        self.state_counts = np.full(n_states, 0)
-        self.state_counts[states_dict['susceptible']] = n_agents
+        self.params = params
+        if rng is None:
+            self.rng = np.random.default_rng(seed=42)
+        else:
+            self.rng = rng
 
         # Initializes the Mobility object
         self.mobility = Mobility(activity_data)
 
-    def get_state_count(self, state):
+        # Initializes all agents to "susceptible"
+        self.states, self.state_counts = None, None
+        self.reset()
+
+    def reset(self):
+        """
+        (Re)sets the Population object to its state at the beginning of the simulation.
+        All agents are set to "susceptible". Their mobility is set to the original activity
+        data.
+        Returns
+        -------
+        """
+        # Initializes the state of all agents to "Susceptible"
+        # self.states is an array of shape (n_agents,) whose elements are integers that
+        # correspond to disease states, following states_dict[].
+        self.states = np.full(self.n_agents, states_dict['susceptible'], dtype=np.int)
+        # self.state_counts is an array of shape (n_states) that counts how many
+        # agents are in each state, at all moments.
+        self.state_counts = np.full(n_states, 0)
+        self.state_counts[states_dict['susceptible']] = self.n_agents
+        # Resets the Mobility object
+        self.mobility.reset()
+
+
+    def get_state_count(self, state: str):
         """
         Returns the number of agents in a given state.
         Parameters
@@ -77,7 +104,7 @@ class Population:
         """
         return self.state_counts[states_dict[state]]
 
-    def get_subset_in_state(self, agent_ids, state):
+    def get_subset_in_state(self, agent_ids: np.array, state: str):
         """
         Given a set A of agents and a specific state s, returns
         the subset of A made up of the agents that are in state s.
@@ -92,16 +119,16 @@ class Population:
         """
         return agent_ids[np.where(self.states[agent_ids] == states_dict[state])[0]]
 
-    def set_agents_state(self, agent_ids, state):
+    def set_agents_state(self, agent_ids: np.array, state_name: str):
         """
         Sets a specific state for a given set of agents.
         Parameters
         ----------
         agent_ids: array containing the IDs of the agents whose state should be set;
-        state: str, name of the state (e.g. "infected").
+        state_name: str, name of the state (e.g. "infected").
         """
-        # Traduct the state's name into its corresponding integer
-        state = states_dict[state]
+        # Translate the state's name into its corresponding integer
+        state = states_dict[state_name]
         # First, we need to look at the current states of the concerned agents,
         # and remove them from the counters associated with those states.
         former_states, former_states_counts = np.unique(self.states[agent_ids], return_counts=True)
@@ -114,7 +141,8 @@ class Population:
         self.states[agent_ids] = state
         # And don't forget to add the agents to the new state's counter
         self.state_counts[state] += len(agent_ids)
-        # Finally, if the new state is infected, then we need to count the agents
-        # in the infected visitors count
-        if state == states_dict['infected']:
+
+        # If the new state is "infected", then the agents need to be counted
+        # in the count of infected visitors per facility.
+        if state_name == 'infected':
             self.mobility.add_infected_visitors(agent_ids)

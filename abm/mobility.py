@@ -6,6 +6,7 @@ performed by the agents.
 import numpy as np
 import pandas as pd
 
+
 class Mobility:
     """
     The Mobility class stores the activities performed by the agents during the day. This means storing
@@ -15,6 +16,7 @@ class Mobility:
     The class also maintains an internal count of the numbers of infected agents in every facility during
     every period.
     """
+
     def __init__(self, activity_data):
         """
         activity_data: Pair (LV, LF) as returned by contacts.load_period_activities().
@@ -30,21 +32,33 @@ class Mobility:
         self.n_facilities, self.n_agents = visit_matrices[0].shape
 
         # Initializes the visitor counts
-        print("Computing the initial number of visitors per period, per facility..")
         # The following list will contain an array for each period. Each array V is of shape
         # (n_facilities,), such that V[f] is the number of visitors of f during the associated period.
-        self.visitors = []
+        self.visitors = None
         # The following list is similar to the previous one, but it only counts infected agents.
         # This is used to be able to retrieve the fraction of infected agents in each facility, at
         # any time. This array is initialized to all zeros, i.e. no infected agents.
-        self.infected_visitors = []
+        self.infected_visitors = None
+        # This method is the one that actually computes the initial counts.
+        self.reset()
+
+
+    def reset(self):
+        """
+        (Re)sets the Mobility object to its state at the beginning of the simulation,
+        without reloading the activity data.
+        Returns
+        -------
+        """
+        # For every period, count how many agents and infected agents are in each facility,
+        # and store it.
+        self.visitors, self.infected_visitors = [], []
         for period in range(self.n_periods):
             visitors = np.zeros(self.n_facilities)
-            facilities, counts = np.unique(locations[period], return_counts=True)
+            facilities, counts = np.unique(self.locations[period], return_counts=True)
             visitors[facilities] += counts
             self.visitors.append(visitors)
             self.infected_visitors.append(np.zeros(self.n_facilities))
-        print("Done")
 
     def get_infected_visitors(self):
         """
@@ -54,6 +68,24 @@ class Mobility:
         (n_facilities,).
         """
         return self.infected_visitors
+
+    def get_locations(self, period=None):
+        """
+        Parameters
+        ----------
+        period: int, optional. If specified, returns the locations for that period only; otherwise
+            return a list containing the locations for all periods.
+        Returns
+        -------
+        If period is given, returns an array L of shape (n_agents) such that L[i] is the location of agent i
+            during the specified period.
+        If period is None, a list containing such arrays for every period.
+        """
+        # We don't return a copy to limit computation time, although it would be safer.
+        if period is None:
+            return self.locations
+        else:
+            return self.locations[period]
 
     def add_infected_visitors(self, agent_ids):
         """
