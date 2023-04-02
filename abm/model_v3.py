@@ -98,7 +98,7 @@ class ABM:
 
         # Other variables that are defined here but initialized in init_simulation():
         self.period, self.day = None, None
-        self.results = ABM_Results()
+        self.results = ABM_Results(self.n_periods)
 
     def set_default_param(self, param, value):
         """
@@ -128,7 +128,7 @@ class ABM:
         # Initialize general vars about the simulation
         self.period, self.day, self.n_days = 0, 0, 0
         # Initializes an empty results manager
-        self.results = ABM_Results()
+        self.results = ABM_Results(self.n_periods)
         # Resets the RNG
         if seed is None:
             seed = self.seed
@@ -165,21 +165,21 @@ class ABM:
         # Starts the infection timer of those agents
         self.infection_timer[agent_ids] = recovery_times
 
-    def random_infections(self, n_infections):
+    def random_infections(self, proba):
         """
         Selects a random set of agents to infect. Every agent
-        has an equal chance to become infected. An agent that is already infected
-        may still be selected.
+        has an equal chance to be infected.
         Parameters
         ----------
-        n_infections: int, number of agents to infect.
+        proba: float between 0 and 1, probability for every agent to become infected.
         Returns
         -------
         An array giving the IDs of the selected agents.
         """
-        return self.rng.integers(0, self.n_agents, n_infections)
+        draws = self.rng.random(self.n_agents)
+        return np.where(draws < proba)[0]
 
-    def process_infections(self, n_forced_infections=None):
+    def process_infections(self, forced_infection_proba=None):
         """
         Runs the infection process:
         - Computes the level of infection of every agent;
@@ -187,17 +187,18 @@ class ABM:
         - Randomly draws according to those probabilities.
         Parameters
         ----------
-        n_forced_infections: int, optional. If specified, the infection process
-            will instead select a random set of n_forced_infections agents that will
-            become infected. The returned level of infections will be 0 for every agent.
+        forced_infection_proba: float between 0 and 1, optional.
+            If specified, the method will instead randomly infect a fraction of the population. Each
+            agent then has a forced_infection_proba chance of being infected.
+            In this case, the levels of infection returned are zero.
         Returns
         -------
         A pair (LI, infected_agents) where:
         - LI is an array of shape (n_agents) containing the level of infection of every agent;
         - infected_agents is an array containing the IDs of the agents that have become infected.
         """
-        if n_forced_infections is not None:
-            infected_agents = self.random_infections(n_forced_infections)
+        if forced_infection_proba is not None:
+            infected_agents = self.random_infections(forced_infection_proba)
             return np.zeros(self.n_agents), infected_agents
         else:
             # TODO
@@ -215,8 +216,11 @@ class ABM:
         for period in range(self.n_periods):
             # === Infection process ===================
             if n_forced_infections is not None:
-                # The forced infections are uniformly spread over the periods
-                infection_levels, infected_agents = self.process_infections(n_forced_infections // self.n_periods)
+                # The forced infections are uniformly spread over the periods. To do so,
+                # we need to compute the proba for every agent, during each period, to be
+                # randomly selected:
+                infection_proba = n_forced_infections / (self.n_periods * self.n_agents)
+                infection_levels, infected_agents = self.process_infections(forced_infection_proba=infection_proba)
             else:
                 # TODO
                 pass
