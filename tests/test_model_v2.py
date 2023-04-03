@@ -41,5 +41,7 @@ if __name__ == "__main__":
     results_df = abm.results.get_per_period_results()
 
     plt.Figure()
-    sns.lineplot(results_df, x=results_df.index, y="infected agents")
+    plt.plot(results_df.index, results_df['infected agents'])
+    plt.plot(results_df.index, results_df['positive tests'])
+    plt.legend(['infected agents', 'positive tests'])
     plt.show()

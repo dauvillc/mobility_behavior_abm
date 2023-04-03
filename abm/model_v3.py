@@ -207,6 +207,37 @@ class ABM:
             # TODO
             pass
 
+    def process_testing(self):
+        """
+        Processes the testing policy:
+        - Computes the Test Interest (TI) of every agent;
+        - Deduces the probability of being tested;
+        - From those probabilities, randomly selects which agents will be tested;
+        - Based on the agents' states and the precision / recall of the tests, selects which
+          agents are tested positive.
+        Returns
+        -------
+        A pair (tested, tested_pos):
+        - tested is an array containing the IDs of the agents that were tested;
+        - tested_pos is a sub-array of tested, containing the IDs of the agents that were tested positive.
+        """
+        # Step 1: compute the Test Interest of every agent
+        # Step 2: deduce the probabilities of test
+        # for now: set to random (TODO: write the real computation).
+        test_probas = self.rng.random(self.n_agents)
+
+        # Step 3: draw which agents are tested based on the test probabilities
+        # TODO: write the real computation
+        tested_boolean = test_probas < 0.33  # dummy value
+        tested = np.where(tested_boolean)[0]
+
+        # Step 4: compute the probability of being tested positive
+        # TODO: include the reliability of tests in the computation
+        # for now, an infected agent who is tested is always tested positive.
+        tested_pos = self.population.get_subset_in_state(tested, "infected")
+
+        return tested, tested_pos
+
     def iterate_day(self, n_forced_infections=None):
         """
         Processes a single day of simulation.
@@ -241,11 +272,18 @@ class ABM:
             # and initiates their recovery process.
             self.set_infected(infected_agents)
 
+            # === Testing process =====================
+            tested, tested_pos = self.process_testing()
+
             # === Storing per-period results ==========
             # Number of new infections
             self.results.store_per_period("new infections", infected_agents.shape[0])
             # Number of currently infected agents
             self.results.store_per_period("infected agents", self.population.get_state_count("infected"))
+            # Number of tested agents
+            self.results.store_per_period("tests", tested.shape[0])
+            # Number of positive tests
+            self.results.store_per_period("positive tests", tested_pos.shape[0])
 
             # === Variables update ====================
             self.period = (1 + self.period) % self.n_periods
