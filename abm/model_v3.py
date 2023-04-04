@@ -238,6 +238,20 @@ class ABM:
 
         return tested, tested_pos
 
+    def process_recovery(self):
+        """
+        Processes the recovery policy during each period:
+        - For every infected agent, reduces their infection time by 1 period;
+        - For agents whose timer has reached 0, sets them to "recovered".
+        """
+        # First: retrieve the IDs of all currently infected agents
+        infected_agents = self.population.get_infected_agents()
+        # for all agents whose infection time has reached zero, they recover
+        recovering_agents = infected_agents[self.infection_timer[infected_agents] == 0]
+        self.population.set_agents_state(recovering_agents, "recovered")
+        # for all still infected agents, reduce their recovery time by one period
+        self.infection_timer[infected_agents] -= 1
+
     def iterate_day(self, n_forced_infections=None):
         """
         Processes a single day of simulation.
@@ -249,13 +263,7 @@ class ABM:
         """
         for period in range(self.n_periods):
             # === Recovery process ====================
-            # First: retrieve the IDs of all currently infected agents
-            infected_agents = self.population.get_infected_agents()
-            # for all agents whose infection time has reached zero, they recover
-            recovering_agents = infected_agents[self.infection_timer[infected_agents] == 0]
-            self.population.set_agents_state(recovering_agents, "recovered")
-            # for all still infected agents, reduce their recovery time by one period
-            self.infection_timer[infected_agents] -= 1
+            self.process_recovery()
 
             # === Infection process ===================
             if n_forced_infections is not None:
