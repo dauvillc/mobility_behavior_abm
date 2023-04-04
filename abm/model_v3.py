@@ -9,6 +9,7 @@ from copy import deepcopy
 from abm.population import Population
 from abm.results import ABM_Results
 from abm.recovery import draw_recovery_times
+from abm.math_tools import sigmoid
 
 
 class ABM:
@@ -99,6 +100,7 @@ class ABM:
         # Other variables that are defined here but initialized in init_simulation():
         self.period, self.day = None, None
         self.results = ABM_Results(self.n_periods)
+        self.initialized = False
 
     def set_default_param(self, param, value):
         """
@@ -201,11 +203,40 @@ class ABM:
         - infected_agents is an array containing the IDs of the agents that have become infected.
         """
         if forced_infection_proba is not None:
+            # If the infections are forced, a random set of agents is selected to become infected.
             infected_agents = self.random_infections(forced_infection_proba)
             return np.zeros(self.n_agents), infected_agents
-        else:
-            # TODO
-            pass
+
+        # === Infection level computation =========
+        # Retrieves the facilities that the agents are currently located at.
+        locations = self.population.mobility.get_locations(self.period)
+        # Retrieves the number of visitors within each of those facilities
+        visitors = self.population.mobility.get_visitors(self.period)[locations]
+        # Retrieves the number of infected visitors within each facility
+        infected_visitors = self.population.mobility.get_infected_visitors(self.period)[locations]
+        # We can now compute the fraction of infected visitors within each facility
+        infected_fractions = infected_visitors / visitors
+
+        # Computation of the levels of infection:
+        infection_levels = self.params['inf_fraction_param'] * infected_fractions + self.params['inf_lvl_error_term']
+
+        # === Probability of infection ===========
+        infection_probas = sigmoid(infection_levels)
+
+        # === Selection of the infected agents ===
+        # Randomly draws which agents will be infected based on their infection probability.
+        # This generates a boolean mask of shape (n_agents), with True meaning the agent becomes infected.
+        infected_mask = self.rng.random(self.n_agents) < infection_probas
+
+        # === Post-processing ====================
+        # Agents that are in the facility 0 are actually considered confined
+        infected_mask &= locations != 0
+
+        # Converts the infection mask into an array containing the IDs of the newly infected
+        # agents
+        infected_agents = np.where(infected_mask)[0]
+
+        return infection_levels, infected_agents
 
     def process_testing(self):
         """
@@ -273,9 +304,8 @@ class ABM:
                 infection_proba = n_forced_infections / (self.n_periods * self.n_agents)
                 infection_levels, infected_agents = self.process_infections(forced_infection_proba=infection_proba)
             else:
-                # TODO
-                pass
-            # Computes the levels of infection, and selects the agents which become infecte
+                # Computes the levels of infection, and selects the agents which become infected
+                infection_levels, infected_agents = self.process_infections()
             # The following filters the agents that are "susceptible", then sets them as "infected"
             # and initiates their recovery process.
             self.set_infected(infected_agents)
@@ -311,6 +341,29 @@ class ABM:
         """
         # First: initialize the simulation variables
         self.init_simulation()
+        self.initialized = True
         # Iterate over a few days, with the forced infections option enabled
         for n_forced_infections in forced_infections:
             self.iterate_day(n_forced_infections=n_forced_infections)
+
+    def run_simulation(self, n_days, verbose=False):
+        """
+        Runs the simulation. Supposes that the model has already been initialized with
+        force_simulation_start.
+        Parameters
+        ----------
+        n_days: int, number of simulation days to perform.
+        verbose: boolean, optional (Default: False). Whether to print progress information.
+        Raises
+        ------
+        ValueError: if the model has not been initialized before calling this function.
+        """
+        if not self.initialized:
+            raise ValueError(
+                "Please initialize the model using force_simulation_start() before running the simulation. ")
+        for day in range(n_days):
+            if verbose:
+                print("Day ", day)
+            self.iterate_day()
+        if verbose:
+            print("Simulation ended. ")

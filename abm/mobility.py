@@ -42,7 +42,6 @@ class Mobility:
         # This method is the one that actually computes the initial counts.
         self.reset()
 
-
     def reset(self):
         """
         (Re)sets the Mobility object to its state at the beginning of the simulation,
@@ -54,20 +53,35 @@ class Mobility:
         # and store it.
         self.visitors, self.infected_visitors = [], []
         for period in range(self.n_periods):
-            visitors = np.zeros(self.n_facilities)
+            visitors = np.zeros(self.n_facilities, dtype=np.int)
             facilities, counts = np.unique(self.locations[period], return_counts=True)
             visitors[facilities] += counts
             self.visitors.append(visitors)
-            self.infected_visitors.append(np.zeros(self.n_facilities))
+            self.infected_visitors.append(np.zeros(self.n_facilities, dtype=np.int))
 
-    def get_infected_visitors(self):
+    def get_visitors(self, period):
         """
+        Parameters
+        ----------
+        period: int, which time period to consider.
         Returns
         -------
-        The number of infected visitors at every facility, as an array of shape
-        (n_facilities,).
+        The number of visitors at every facility during the given period,
+        as an array of shape (n_facilities,).
         """
-        return self.infected_visitors
+        return self.visitors[period]
+
+    def get_infected_visitors(self, period):
+        """
+        Parameters
+        ----------
+        period: int, which time period to consider.
+        Returns
+        -------
+        The number of infected visitors at every facility during the given period,
+        as an array of shape (n_facilities,).
+        """
+        return self.infected_visitors[period]
 
     def get_locations(self, period=None):
         """

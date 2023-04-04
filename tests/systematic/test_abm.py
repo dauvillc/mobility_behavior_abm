@@ -19,6 +19,8 @@ if __name__ == "__main__":
     params = {
         'inf_params': {'age': 0.000},
         'test_params': {'age': 0.000},
+        'inf_fraction_param': 3.0,
+        'inf_lvl_error_term': -8.0,
         'recovery_mean_time': 8.0,
         'recovery_std_time': 2.0
     }
@@ -26,7 +28,7 @@ if __name__ == "__main__":
     abm = ABM(params, activity_data)
 
     # ACTUAL TEST
-    # Tests the forced simulation start
+    # Tests the forced simulation start ========================================
     forced_infections = [100, 200, 300, 400, 500]  # dummy values
     abm.force_simulation_start(forced_infections)
     # Some basic verifications regarding the length and values of simulation variables
@@ -39,6 +41,19 @@ if __name__ == "__main__":
     total_infections = sum(new_infections_per_period)
     expected_infections = sum(forced_infections)
     assert expected_infections * 0.9 <= total_infections <= expected_infections * 1.1
+    # Tests the actual simulation ==============================================
+    n_days = 20
+    abm.run_simulation(n_days, verbose=True)
+    # Same basic verifications as with the forced start
+    assert abm.day == len(forced_infections) + n_days
+    assert abm.period == 0
+    new_infections_per_period = abm.results.get_per_period("new infections")
+    assert len(new_infections_per_period) == (len(forced_infections) + n_days) * abm.n_periods
+    # Verifies that the number of infected visitors is always inferior or equal
+    # to the number of visitors:
+    visitors = abm.population.mobility.get_visitors(0)
+    infected_visitors = abm.population.mobility.get_infected_visitors(0)
+    assert np.all(infected_visitors <= visitors)
 
     # Tests that the ABM resets well
     forced_infections = [100] + [0] * 50  # Includes 50 days without any infection
