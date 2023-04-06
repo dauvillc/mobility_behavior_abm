@@ -151,14 +151,13 @@ class ABM:
         """
         Sets a group of agents to the "infected" state. For each of those
         agents, a timer starts that counts how many periods the agent still has to
-        spend as infected. If an agent is not in the "susceptible" state, this method has no effect
-        onto them.
+        spend as infected.
+        IMPORTANT: This method assumes the agents are susceptible, so it should be checked
+        beforehand !
         Parameters
         ----------
         agent_ids: np array, IDs of the newly infected agents.
         """
-        # First: filters the agents that are susceptible:
-        agent_ids = self.population.get_subset_in_state(agent_ids, "susceptible")
         # Modifies the state of the agents in the Population object
         self.population.set_agents_state(agent_ids, "infected")
         # Draws random recovery times
@@ -190,6 +189,8 @@ class ABM:
         - Computes the level of infection of every agent;
         - Computes their probability of infection;
         - Randomly draws according to those probabilities.
+        - Filters the "susceptible" agents so that only they can become
+          infected.
         Parameters
         ----------
         forced_infection_proba: float between 0 and 1, optional.
@@ -205,40 +206,44 @@ class ABM:
         if forced_infection_proba is not None:
             # If the infections are forced, a random set of agents is selected to become infected.
             infected_agents = self.random_infections(forced_infection_proba)
-            return np.zeros(self.n_agents), infected_agents
+            infection_levels =  np.zeros(self.n_agents)
+        else:
 
-        # === Infection level computation =========
-        # Retrieves the facilities that the agents are currently located at.
-        locations = self.population.mobility.get_locations(self.period)
-        # Retrieves the number of visitors within each of those facilities
-        visitors = self.population.mobility.get_visitors(self.period)[locations]
-        # Retrieves the number of infected visitors within each facility
-        infected_visitors = self.population.mobility.get_infected_visitors(self.period)[locations]
-        # We can now compute the fraction of infected visitors within each facility
-        infected_fractions = infected_visitors / visitors
+            # === Infection level computation =========
+            # Retrieves the facilities that the agents are currently located at.
+            locations = self.population.mobility.get_locations(self.period)
+            # Retrieves the number of visitors within each of those facilities
+            visitors = self.population.mobility.get_visitors(self.period)[locations]
+            # Retrieves the number of infected visitors within each facility
+            infected_visitors = self.population.mobility.get_infected_visitors(self.period)[locations]
+            # We can now compute the fraction of infected visitors within each facility
+            infected_fractions = infected_visitors / visitors
 
-        # Computation of the levels of infection:
-        infection_levels = self.params['inf_fraction_param'] * infected_fractions + self.params['inf_lvl_error_term']
+            # Computation of the levels of infection:
+            infection_levels = self.params['inf_fraction_param'] * infected_fractions + self.params['inf_lvl_error_term']
 
-        # === Probability of infection ===========
-        infection_probas = sigmoid(infection_levels)
+            # === Probability of infection ===========
+            infection_probas = sigmoid(infection_levels)
 
-        # === Selection of the infected agents ===
-        # Randomly draws which agents will be infected based on their infection probability.
-        # This generates a boolean mask of shape (n_agents), with True meaning the agent becomes infected.
-        infected_mask = self.rng.random(self.n_agents) < infection_probas
+            # === Selection of the infected agents ===
+            # Randomly draws which agents will be infected based on their infection probability.
+            # This generates a boolean mask of shape (n_agents), with True meaning the agent becomes infected.
+            infected_mask = self.rng.random(self.n_agents) < infection_probas
 
-        # === Post-processing ====================
-        # Agents that are in the facility 0 are actually considered confined
-        infected_mask &= locations != 0
+            # === Post-processing ====================
+            # Agents that are in the facility 0 are actually considered confined
+            infected_mask &= locations != 0
 
-        # Converts the infection mask into an array containing the IDs of the newly infected
-        # agents
-        infected_agents = np.where(infected_mask)[0]
+            # Converts the infection mask into an array containing the IDs of the newly infected
+            # agents
+            infected_agents = np.where(infected_mask)[0]
+
+        # Finally: make sure that only "susceptible" agents can become infected:
+        infected_agents = self.population.get_subset_in_state(infected_agents, "susceptible")
 
         return infection_levels, infected_agents
 
-    def process_testing(self):
+    def process_testing(self, infection_levels):
         """
         Processes the testing policy:
         - Computes the Test Interest (TI) of every agent;
@@ -246,6 +251,10 @@ class ABM:
         - From those probabilities, randomly selects which agents will be tested;
         - Based on the agents' states and the precision / recall of the tests, selects which
           agents are tested positive.
+        Parameters
+        ----------
+        infection_levels: float np array of shape (n_agents,). Level of infection of every
+            agent, computed previously during this period.
         Returns
         -------
         A pair (tested, tested_pos):
@@ -253,13 +262,13 @@ class ABM:
         - tested_pos is a sub-array of tested, containing the IDs of the agents that were tested positive.
         """
         # Step 1: compute the Test Interest of every agent
+        test_interest = self.params['test_inf_lvl_param'] * infection_levels + self.params['test_error_term']
+
         # Step 2: deduce the probabilities of test
-        # for now: set to random (TODO: write the real computation).
-        test_probas = self.rng.random(self.n_agents)
+        test_probas = sigmoid(test_interest)
 
         # Step 3: draw which agents are tested based on the test probabilities
-        # TODO: write the real computation
-        tested_boolean = test_probas < 0.33  # dummy value
+        tested_boolean = self.rng.random(self.n_agents) < test_probas
         tested = np.where(tested_boolean)[0]
 
         # Step 4: compute the probability of being tested positive
@@ -306,18 +315,20 @@ class ABM:
             else:
                 # Computes the levels of infection, and selects the agents which become infected
                 infection_levels, infected_agents = self.process_infections()
-            # The following filters the agents that are "susceptible", then sets them as "infected"
+            # The following sets the selected agents as "infected"
             # and initiates their recovery process.
             self.set_infected(infected_agents)
 
             # === Testing process =====================
-            tested, tested_pos = self.process_testing()
+            tested, tested_pos = self.process_testing(infection_levels)
 
             # === Storing per-period results ==========
             # Number of new infections
             self.results.store_per_period("new infections", infected_agents.shape[0])
             # Number of currently infected agents
             self.results.store_per_period("infected agents", self.population.get_state_count("infected"))
+            # Number of currently recovered agents
+            self.results.store_per_period("recovered agents", self.population.get_state_count("recovered"))
             # Number of tested agents
             self.results.store_per_period("tests", tested.shape[0])
             # Number of positive tests

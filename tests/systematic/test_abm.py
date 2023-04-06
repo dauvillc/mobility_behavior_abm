@@ -21,6 +21,8 @@ if __name__ == "__main__":
         'test_params': {'age': 0.000},
         'inf_fraction_param': 3.0,
         'inf_lvl_error_term': -8.0,
+        'test_inf_lvl_param': 1.0,
+        'test_error_term': 0,
         'recovery_mean_time': 8.0,
         'recovery_std_time': 2.0
     }
@@ -54,6 +56,10 @@ if __name__ == "__main__":
     visitors = abm.population.mobility.get_visitors(0)
     infected_visitors = abm.population.mobility.get_infected_visitors(0)
     assert np.all(infected_visitors <= visitors)
+    # Verifies that the number of infected visitors in total is equal to the number
+    # of infected agents
+    assert infected_visitors.sum() == abm.population.get_state_count("infected")
+    assert len(abm.population.get_infected_agents()) == infected_visitors.sum()
 
     # Tests that the ABM resets well
     forced_infections = [100] + [0] * 50  # Includes 50 days without any infection
