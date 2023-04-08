@@ -3,9 +3,8 @@ Clément Dauvilliers - April 1st 2023
 Implements the Population clas, which stores all information about the agents, including their states.
 """
 import numpy as np
-import pandas as pd
 from abm.mobility import Mobility
-from abm.recovery import draw_recovery_times
+from abm.characteristics import compute_characteristics, load_population_dataset
 
 # Dictionary that maps the names of the states to integers
 states_dict = {
@@ -28,18 +27,24 @@ class Population:
     """
 
     def __init__(self,
-                 pop_inf_characteristics,
-                 pop_test_characteristics,
                  activity_data,
                  params,
+                 population_dataset=None,
+                 pop_inf_characteristics=None,
+                 pop_test_characteristics=None,
                  rng=None):
         """
         Parameters
         ----------
-        pop_inf_characteristics: Float array of shape (n_agents). Values for the
+        population_dataset: DataFrame, optional. Dataset containing the agents' attributes (especially, social
+            and economic and health characteristics).
+            If None, it will be loaded from the file indicated in the config file.
+        pop_inf_characteristics: Float array of shape (n_agents), optional. Values for the
             characteristics of all agents regarding the probability of infection.
-        pop_test_characteristics: Float array of shape (n_agents). Values for the
+            If not given, will be computed.
+        pop_test_characteristics: Float array of shape (n_agents), optional. Values for the
             characteristics of all agents regarding the probability of being tested.
+            If not given, will be computed.
         activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
             - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
@@ -47,13 +52,30 @@ class Population:
         rng: optional, specific numpy random number generator to use.
         """
         (self.n_agents, _), _, _ = activity_data
-        self.pop_inf_characteristics = pop_inf_characteristics
-        self.pop_test_characteristics = pop_test_characteristics
         self.params = params
         if rng is None:
             self.rng = np.random.default_rng(seed=42)
         else:
             self.rng = rng
+
+        # Builds the agents' characteristics if required ===================
+        # Begins by loading the population dataset:
+        if population_dataset is None:
+            population_df = load_population_dataset()
+        else:
+            population_df = population_dataset
+        # For the probability of infection
+        if pop_inf_characteristics is None:
+            self.pop_inf_characteristics = compute_characteristics(population_df, self.params['inf_params'])
+        else:
+            self.pop_inf_characteristic = pop_inf_characteristics
+
+        # For the probability of being tested
+        if pop_test_characteristics is None:
+            self.pop_test_characteristics = compute_characteristics(population_df, self.params['test_params'])
+        else:
+            self.pop_test_characteristics = pop_test_characteristics
+        # =====================================================================
 
         # Initializes the Mobility object
         self.mobility = Mobility(activity_data)

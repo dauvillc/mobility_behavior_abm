@@ -66,28 +66,9 @@ class ABM:
         self.set_default_param("inf_proba_sigmoid_slope", 1.0)
         self.set_default_param("test_proba_sigmoid_slope", 1.0)
 
-        # Loads the population socio-eco attributes if required
-        if population_dataset is None:
-            population_df = ch.load_population_dataset()
-        else:
-            population_df = population_dataset
-
-        # Builds the agents' characteristics if required
-        # For the probability of infection
-        if pop_inf_characteristics is None:
-            inf_characs = ch.compute_characteristics(population_df, self.params['inf_params'])
-        else:
-            inf_characs = pop_inf_characteristics
-
-        # For the probability of being tested
-        if pop_test_characteristics is None:
-            test_characs = ch.compute_characteristics(population_df, self.params['test_params'])
-        else:
-            test_characs = pop_test_characteristics
-
         # Builds the Population object
-        self.population = Population(inf_characs, test_characs, activity_data,
-                                     self.params, self.rng)
+        self.population = Population(activity_data,
+                                     self.params, pop_inf_characteristics, pop_test_characteristics, self.rng)
 
         # Timers
         # they are only defined here, not initialized. It's not mandatory in Python,
@@ -226,7 +207,7 @@ class ABM:
         if forced_infection_proba is not None:
             # If the infections are forced, a random set of agents is selected to become infected.
             infected_agents = self.random_infections(forced_infection_proba)
-            infection_levels =  np.zeros(self.n_agents)
+            infection_levels = np.zeros(self.n_agents)
         else:
 
             # === Infection level computation =========
@@ -240,7 +221,10 @@ class ABM:
             infected_fractions = infected_visitors / visitors
 
             # Computation of the levels of infection:
-            infection_levels = self.params['inf_fraction_param'] * infected_fractions + self.params['inf_lvl_error_term']
+            error_term = self.params['inf_lvl_error_term']
+            # Term related to the fraction of infected visitors at the facility
+            fraction_term = self.params['inf_fraction_param'] * infected_fractions
+            infection_levels = fraction_term + error_term
 
             # === Probability of infection ===========
             infection_probas = sigmoid(self.params['inf_proba_sigmoid_slope'] * infection_levels)
