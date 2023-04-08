@@ -33,7 +33,7 @@ class ABM:
         activity_data: Pair (LV, LF) as returned by contacts.load_period_activities().
             - LV is the list of sparse visit matrices for every period;
             - LF is the list of locations of all agents during each period.
-            - LT is the list of activity types of all acitvities during each period.
+            - LT is the list of activity types of all activities during each period.
         population_dataset: DataFrame, optional. Dataset containing the agents' attributes.
             If None, it will be loaded.
         pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
@@ -64,6 +64,8 @@ class ABM:
         # Sets the parameters' default values
         self.set_default_param("recovery_mean_time", 8.0)
         self.set_default_param("recovery_std_time", 2.0)
+        self.set_default_param("inf_proba_sigmoid_slope", 1.0)
+        self.set_default_param("test_proba_sigmoid_slope", 1.0)
 
         # Loads the population socio-eco attributes if required
         if population_dataset is None:
@@ -223,7 +225,7 @@ class ABM:
             infection_levels = self.params['inf_fraction_param'] * infected_fractions + self.params['inf_lvl_error_term']
 
             # === Probability of infection ===========
-            infection_probas = sigmoid(infection_levels)
+            infection_probas = sigmoid(self.params['inf_proba_sigmoid_slope'] * infection_levels)
 
             # === Selection of the infected agents ===
             # Randomly draws which agents will be infected based on their infection probability.
@@ -265,7 +267,7 @@ class ABM:
         test_interest = self.params['test_inf_lvl_param'] * infection_levels + self.params['test_error_term']
 
         # Step 2: deduce the probabilities of test
-        test_probas = sigmoid(test_interest)
+        test_probas = sigmoid(self.params['test_proba_sigmoid_slope'] * test_interest)
 
         # Step 3: draw which agents are tested based on the test probabilities
         tested_boolean = self.rng.random(self.n_agents) < test_probas
