@@ -2,7 +2,7 @@
 Clément Dauvilliers - April 2nd 2023
 Implements the methods related to the recovery process.
 """
-from abm.math_tools import compute_lognormal_params
+from abm.utils import compute_lognormal_params
 
 
 def draw_recovery_times(n_agents, mean_recov_time, std_recov_time,

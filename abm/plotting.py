@@ -63,7 +63,8 @@ class ABM_Plotter:
         if show_fig:
             fig.show()
 
-    def plot_infection_spread(self, save_html_to=None,
+    def plot_infection_spread(self, population_df,
+                              save_html_to=None,
                               save_gif_to=None,
                               show_fig=False):
         """
@@ -71,6 +72,9 @@ class ABM_Plotter:
 
         Parameters
         ----------
+        population_df: DataFrame of shape (n_agents, 3 or more) which needs to contain
+            at least the columns 'wgs84_e', 'wgs84_n' and 'municipality' (coordinates of every agent's
+            home).
         save_html_to: str, optional. Path to an HTML file into which the animation
             shall be saved.
         save_gif_to: str, optional. Path to a GIF image into which the animation
@@ -83,8 +87,6 @@ class ABM_Plotter:
 
         """
         abm = self.abm
-        # DataFrame containing the information about each agent
-        population_df = abm.population.population_dataset
         # List of the giving the IDs of the infected agents during each period.
         infected_ids = abm.results.get("infected agents IDs")
         # Creates a list of DataFrames corresponding to the successive simulation periods.

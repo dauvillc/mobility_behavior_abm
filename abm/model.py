@@ -112,6 +112,18 @@ class ABM:
         if param not in self.params:
             self.params[param] = value
 
+    def set_param(self, param_name, value):
+        """
+        Sets the value of a given parameter.
+        WARNING: using this method on a model that is being run might
+        result in unpredictable behavior.
+        Parameters
+        ----------
+        param_name: str, name of the parameter to set.
+        value: new value for the parameter.
+        """
+        self.params[param_name] = value
+
     def init_simulation(self, seed=None):
         """
         (Re)initializes the simulation, while conserving the model's
