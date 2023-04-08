@@ -13,14 +13,16 @@ if __name__ == "__main__":
 
     # Simulation parameters
     params = {
+        'inf_params': {'age': 0.000},
+        'test_params': {'age': 0.000},
+        'inf_fraction_param': 13,
+        'inf_lvl_error_term': -11.0,
+        'inf_proba_sigmoid_slope': 2.0,
+        'test_inf_lvl_param': 1.0,
+        'test_error_term': -2,
+        'test_proba_sigmoid_slope': 0.5,
         'recovery_mean_time': 8.0,
-        'recovery_std_time': 2.0,
-        'inf_params': {'age': 0.001},
-        'inf_fraction_param': 0.045,
-        'test_params': {'age': 0.001},
-        'base_test_proba': 0.1,
-        'test_inf_proba_factor': 0.3,
-        'apply_activity_reduction': False
+        'recovery_std_time': 2.0
     }
     period_length = 60
     n_periods = 24
@@ -33,13 +35,12 @@ if __name__ == "__main__":
     initial_infections = rng.random(models.models[0].n_agents) < 0.001
 
     # ========================== SIMULATION ======================= #
-    models.init_simulation(initial_infections)
-    results = models.run_simulations(simulation_days)
+    forced_infections = [10, 50, 75, 100, 125, 150, 200]
+    results = models.run_simulations(forced_infections, simulation_days)
     results_df = models.get_results_dataframe(timestep='daily')
 
     # ========================== VISU ============================= #
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    sns.lineplot(data=results_df, x="day", y="total tests", ax=ax)
-    sns.lineplot(data=results_df, x="day", y="positive tests", ax=ax)
+    sns.lineplot(data=results_df, x="day", y="daily summed new infections", ax=ax)
     fig.show()
     print("Done")

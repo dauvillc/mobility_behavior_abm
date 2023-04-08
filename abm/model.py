@@ -54,7 +54,7 @@ class ABM:
         """
         self.params = deepcopy(params)
         self.seed = seed
-        self.rng = np.random.default_rng(seed=seed)
+        self.set_seed(seed)
 
         # Retrieve some constants of the simulation:
         (self.n_agents, self.n_facilities), agents_locations, _ = activity_data
@@ -112,6 +112,16 @@ class ABM:
         if param not in self.params:
             self.params[param] = value
 
+    def set_seed(self, seed):
+        """
+        Sets the model's random seed.
+        Parameters
+        ----------
+        seed: integer, seed to use.
+        """
+        self.seed = seed
+        self.rng = np.random.default_rng(seed=seed)
+
     def set_param(self, param_name, value):
         """
         Sets the value of a given parameter.
@@ -144,7 +154,7 @@ class ABM:
         # Resets the RNG
         if seed is None:
             seed = self.seed
-        self.rng = np.random.default_rng(seed=seed)
+        self.set_seed(seed)
 
         # Resets the Population (sets all agents to "susceptible").
         self.population.reset()

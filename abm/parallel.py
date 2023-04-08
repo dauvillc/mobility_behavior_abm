@@ -10,18 +10,27 @@ import abm.characteristics as ch
 from abm.model import ABM
 
 
-def run_model(model, days):
+def run_model(model, initial_infections, days, seed):
     """
     Runs a given ABM.
     Parameters
     ----------
     model: ABM Object to run.
     days: Number of simulation days to process.
+    initial_infections: list or array-like of integers. Number of new
+        infections to force for the first days of the simulation.
+        initial_infections[d] should be an integer giving the number of
+        new infections occurring on day d.
+    seed: integer, random seed to use.
 
     Returns
     -------
     The Results object from the run model.
     """
+    # Sets the model's seed
+    # Sets the model's initial conditions
+    model.force_simulation_start(initial_infections)
+    # Runs the simulation
     model.run_simulation(days)
     return model.results
 
@@ -74,7 +83,8 @@ class ParallelABM:
                            population_dataset=self.population,
                            pop_inf_characteristics=self.inf_characs,
                            pop_test_characteristics=self.test_characs,
-                           seed=s) for s in self.seeds]
+                           seed=seed)
+                       for seed in self.seeds]
         print("Done")
 
     def set_param(self, param_name, value):
@@ -107,37 +117,23 @@ class ParallelABM:
         for param_val, model in zip(values, self.models):
             model.set_param(param_name, param_val)
 
-    def run_simulations(self, days):
+    def run_simulations(self, initial_infections, days):
         """
         Runs the simulations in parallel.
         Parameters
         ----------
+        initial_infections: list or array-like of integers. Number of new
+            infections to force for the first days of the simulation.
+            initial_infections[d] should be an integer giving the number of
+            new infections occurring on day d.
         days: Number of simulation days.
         """
-        print(f"Starting {self.n_models} parallel simulations")
-        self.n_days += days
+        print(f"Running {self.n_models} parallel simulations...")
         with mp.Pool(processes=self.n_models) as pool:
             # Launches each model by calling run_model(i) for model i
-            self.results = pool.starmap(run_model, [(m, days) for m in self.models])
+            self.results = pool.starmap(run_model, [(model, initial_infections, days, seed)
+                                                    for model, seed in zip(self.models, self.seeds)])
         print("Simulations ended")
-
-    def force_simulation_start(self, daily_infections):
-        """
-        Initializes the models by forcing a certain number of infections for a given
-        number of days.
-        The forced infections are drawn randomly among the agents, who then transit
-        normally between disease states.
-        Parameters
-        ----------
-        daily_infections: list or array-like of integers. Number of daily new
-            infections to force. The number of forced simulation days will be
-            len(daily_infections).
-        """
-        self.n_days = len(daily_infections)
-        print("Forcing initial infections...")
-        for k, model in enumerate(self.models):
-            print(f"Model {k + 1}/{self.n_models}")
-            model.force_simulation_start(daily_infections)
 
     def get_results_dataframe(self, timestep="daily"):
         """
