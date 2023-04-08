@@ -1,0 +1,2 @@
+paths:
+  population_dataset: 'data/abm/vaud/extracted/vaud_population.csv.gz'
