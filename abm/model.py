@@ -67,8 +67,8 @@ class ABM:
         self.set_default_param("test_proba_sigmoid_slope", 1.0)
 
         # Builds the Population object
-        self.population = Population(activity_data,
-                                     self.params, pop_inf_characteristics, pop_test_characteristics, self.rng)
+        self.population = Population(activity_data, self.params, population_dataset, pop_inf_characteristics,
+                                     pop_test_characteristics, self.rng)
 
         # Timers
         # they are only defined here, not initialized. It's not mandatory in Python,
@@ -224,7 +224,9 @@ class ABM:
             error_term = self.params['inf_lvl_error_term']
             # Term related to the fraction of infected visitors at the facility
             fraction_term = self.params['inf_fraction_param'] * infected_fractions
-            infection_levels = fraction_term + error_term
+            # Scalar product between the betas and the social, economic and sanitary characteristics
+            attributes_term = self.population.pop_inf_characteristics
+            infection_levels = fraction_term + attributes_term + error_term
 
             # === Probability of infection ===========
             infection_probas = sigmoid(self.params['inf_proba_sigmoid_slope'] * infection_levels)
@@ -266,7 +268,12 @@ class ABM:
         - tested_pos is a sub-array of tested, containing the IDs of the agents that were tested positive.
         """
         # Step 1: compute the Test Interest of every agent
-        test_interest = self.params['test_inf_lvl_param'] * infection_levels + self.params['test_error_term']
+        # Term related to the level of infection
+        inf_lvl_term = self.params['test_inf_lvl_param'] * infection_levels
+        # Term related to the social, economic and sanitary characteristics
+        attributes_term = self.population.pop_test_characteristics
+        error_term = self.params['test_error_term']
+        test_interest = inf_lvl_term + attributes_term + error_term
 
         # Step 2: deduce the probabilities of test
         test_probas = sigmoid(self.params['test_proba_sigmoid_slope'] * test_interest)

@@ -111,7 +111,6 @@ class Population:
         # Resets the Mobility object
         self.mobility.reset()
 
-
     def get_state_count(self, state: str):
         """
         Returns the number of agents in a given state.
