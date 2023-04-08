@@ -28,7 +28,6 @@ class Population:
     """
 
     def __init__(self,
-                 population_dataset,
                  pop_inf_characteristics,
                  pop_test_characteristics,
                  activity_data,
@@ -37,14 +36,10 @@ class Population:
         """
         Parameters
         ----------
-        population_dataset: DataFrame, optional. Dataset containing the agents' attributes.
-            If None, it will be loaded.
-        pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
-            characteristics of all agents regarding the probability of infection. If None,
-            it will be computed using the parameters.
-        pop_test_characteristics: optional, Float array of shape (n_agents). Values for the
-            characteristics of all agents regarding the probability of being tested. If None,
-            it will be computed using the parameters.
+        pop_inf_characteristics: Float array of shape (n_agents). Values for the
+            characteristics of all agents regarding the probability of infection.
+        pop_test_characteristics: Float array of shape (n_agents). Values for the
+            characteristics of all agents regarding the probability of being tested.
         activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
             - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
@@ -52,7 +47,6 @@ class Population:
         rng: optional, specific numpy random number generator to use.
         """
         (self.n_agents, _), _, _ = activity_data
-        self.population_dataset = population_dataset
         self.pop_inf_characteristics = pop_inf_characteristics
         self.pop_test_characteristics = pop_test_characteristics
         self.params = params

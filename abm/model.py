@@ -9,7 +9,7 @@ from copy import deepcopy
 from abm.population import Population
 from abm.results import ABM_Results
 from abm.recovery import draw_recovery_times
-from abm.math_tools import sigmoid
+from abm.utils import sigmoid
 
 
 class ABM:
@@ -68,10 +68,7 @@ class ABM:
 
         # Loads the population socio-eco attributes if required
         if population_dataset is None:
-            print("Loading the population dataset..")
-            population_df = pd.read_csv('data/abm/vaud/extracted/vaud_population.csv.gz', index_col='agent_index')
-            population_df = population_df.sort_index()
-            print("Done")
+            population_df = ch.load_population_dataset()
         else:
             population_df = population_dataset
 
@@ -89,7 +86,7 @@ class ABM:
             test_characs = pop_test_characteristics
 
         # Builds the Population object
-        self.population = Population(population_df, inf_characs, test_characs, activity_data,
+        self.population = Population(inf_characs, test_characs, activity_data,
                                      self.params, self.rng)
 
         # Timers

@@ -8,11 +8,32 @@ may not be the same for the recovery rate as for the level of infection. Therefo
 separate characteristics have to be defined for each purpose;
 """
 import numpy as np
+import pandas as pd
+import yaml
+
+
+def load_population_dataset():
+    """
+    Loads the population dataset, which contains for every agent ID the attributes
+    (e.g. geographic coordinates of home, social and economic characteristics, health...).
+    The population dataset's path needs to be specified in simulation_config.yml as:
+    paths:
+      population_dataset: 'path'
+    Returns
+    -------
+    A pandas DataFrame indexed by agent ID.
+    """
+    with open("simulation_config.yml") as cfg:
+        simu_config = yaml.safe_load(cfg.read())
+        population_df = pd.read_csv(simu_config['paths']['population_dataset'], index_col='agent_index')
+        population_df = population_df.sort_index()
+        return population_df
 
 
 def compute_characteristics(attributes, params):
     """
-    Computes the agents' characteristic regarding the probability of infection and test.
+    Given the attributes (e.g. socio-economic, health-related) of the agents
+    and the associated parameters (betas), computes their scalar product.
     Parameters
     ----------
     attributes: DataFrame of shape (n_agents, n_characteristics); population characteristics. Each column

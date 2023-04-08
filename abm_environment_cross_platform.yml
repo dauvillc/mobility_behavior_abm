@@ -1,17 +1,18 @@
-name: abm
+name: /home/clement/epfl/mobility_behavior_abm/env
 channels:
   - defaults
-  - conda-forge
 dependencies:
-  - scipy==1.9.3
-  - pandas=1.5.2
-  - scikit-learn
+  - python-kaleido
   - tqdm
-  - seaborn
-  - emcee
-  - jupyterlab
-  - networkx
-  - ipywidgets
+  - scipy==1.9.3
   - imageio
   - plotly
-  - python-kaleido
+  - pandas=1.5.2
+  - seaborn
+  - jupyterlab
+  - ipywidgets
+  - emcee
+  - networkx
+  - scikit-learn
+  - pyyaml
+prefix: /home/clement/epfl/mobility_behavior_abm/env
