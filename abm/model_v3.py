@@ -128,7 +128,7 @@ class ABM:
         -------
         """
         # Initialize general vars about the simulation
-        self.period, self.day, self.n_days = 0, 0, 0
+        self.period, self.day = 0, 0
         # Initializes an empty results manager
         self.results = ABM_Results(self.n_periods)
         # Resets the RNG
@@ -333,6 +333,8 @@ class ABM:
             self.results.store_per_period("tests", tested.shape[0])
             # Number of positive tests
             self.results.store_per_period("positive tests", tested_pos.shape[0])
+            # IDs of the currently infected agents
+            self.results.store("infected agents IDs", self.population.get_infected_agents())
 
             # === Variables update ====================
             self.period = (1 + self.period) % self.n_periods
