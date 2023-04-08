@@ -1,12 +1,10 @@
 """
+Clément Dauvilliers - April 8th 2023
 Tests the ParallelABM class.
 """
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 from abm.parallel import ParallelABM
 from abm.contacts import load_period_activities
-from abm.plotting import ABM_Plotter
 
 if __name__ == "__main__":
     # ====================================== INIT ================= #
@@ -32,15 +30,22 @@ if __name__ == "__main__":
     activity_data = load_period_activities()
     rng = np.random.default_rng(seed=42)
     models = ParallelABM(params, activity_data, n_models=4)
-    initial_infections = rng.random(models.models[0].n_agents) < 0.001
 
     # ========================== SIMULATION ======================= #
+    # Performs a first batch of parallel simulations
     forced_infections = [10, 50, 75, 100, 125, 150, 200]
-    results = models.run_simulations(forced_infections, simulation_days)
+    models.run_simulations(forced_infections, simulation_days)
     results_df = models.get_results_dataframe(timestep='daily')
 
-    # ========================== VISU ============================= #
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    sns.lineplot(data=results_df, x="day", y="daily summed new infections", ax=ax)
-    fig.show()
-    print("Done")
+    # Basic tests regarding the results
+    assert results_df['day'].max() + 1 == len(forced_infections) + simulation_days
+
+    # Resets the ParallelABM object, and performs the same simulations
+    models.reset()
+    models.run_simulations(forced_infections, simulation_days)
+    results_second_time = models.get_results_dataframe(timestep='daily')
+
+    # Checks that the results are exactly the same as before
+    assert results_second_time.equals(results_df)
+
+    print("Test successful !")

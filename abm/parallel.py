@@ -10,7 +10,7 @@ import abm.characteristics as ch
 from abm.model import ABM
 
 
-def run_model(model, initial_infections, days, seed):
+def run_model(model, initial_infections, days, seed, param_changes):
     """
     Runs a given ABM.
     Parameters
@@ -22,12 +22,18 @@ def run_model(model, initial_infections, days, seed):
         initial_infections[d] should be an integer giving the number of
         new infections occurring on day d.
     seed: integer, random seed to use.
+    param_changes: dictionary {parameter: value}, indicating changes that
+        should be made to some parameters of the model.
 
     Returns
     -------
     The Results object from the run model.
     """
+    # Applies the potential parameter changes
+    for param, value in param_changes.items():
+        model.set_param(param, value)
     # Sets the model's seed
+    model.set_seed(seed)
     # Sets the model's initial conditions
     model.force_simulation_start(initial_infections)
     # Runs the simulation
@@ -38,6 +44,9 @@ def run_model(model, initial_infections, days, seed):
 class ParallelABM:
     """
     A ParallelABM class is designed to run multiple parallel simulation.
+    Internally, only a single ABM object is created. When the parallel simulations
+    are run, a copy of that model is created by each process. The copies each have their
+    own random seed.
     """
 
     def __init__(self, params, activity_data, n_models=1, seed=42):
@@ -63,29 +72,43 @@ class ParallelABM:
         self.results = None
 
         # ===== DATA LOADING ======================== #
-        # The large datasets and characteristics computation can be shared between all models
         print("Loading the population dataset in the master..")
         self.population = ch.load_population_dataset()
         print("Done")
 
-        # Builds the agents' characteristics if required
-        print("Computing population characteristics in the master...")
+        # Initializes the object, including the computation of the agents characteristics
+        self.reset()
+
+        # Creates random seeds for every model, which depend on the master seed
+        # for reproducibility
+        print(f"Assembling the model...")
+        self.seeds = self.rng.integers(0, 100, self.n_models)
+        # Internally, only a single ABM object is created. When the parallel simulations
+        # are run, a copy of that model is created by each process. The copies each have their
+        # own random seed.
+        self.model = ABM(params,
+                         activity_data,
+                         population_dataset=self.population,
+                         pop_inf_characteristics=self.inf_characs,
+                         pop_test_characteristics=self.test_characs,
+                         seed=seed)
+        print("Done")
+
+    def reset(self):
+        """
+        Resets the ParallelABM object, to make it ready to run new simulations
+        (for example, after some parameters have been modified), without reloading
+        more data than needed.
+        """
+        # Computes the agents' characteristics. Those depend on the parameters, so their
+        # values might have changed.
+        print("Computing population characteristics...")
         self.inf_characs = ch.compute_characteristics(self.population, self.params['inf_params'])
         self.test_characs = ch.compute_characteristics(self.population, self.params['test_params'])
         print("Done")
 
-        # Creates random seeds for every model, which depend on the master seed
-        # for reproducibility
-        print(f"Assembling {self.n_models} models ")
-        self.seeds = self.rng.integers(0, 100, self.n_models)
-        self.models = [ABM(params,
-                           activity_data,
-                           population_dataset=self.population,
-                           pop_inf_characteristics=self.inf_characs,
-                           pop_test_characteristics=self.test_characs,
-                           seed=seed)
-                       for seed in self.seeds]
-        print("Done")
+        # Resets the list of varying parameters (see set_varying_param() )
+        self.param_variations = [dict() for _ in range(self.n_models)]
 
     def set_param(self, param_name, value):
         """
@@ -96,8 +119,7 @@ class ParallelABM:
         value: new value for the parameter.
         """
         self.params[param_name] = value
-        for model in self.models:
-            model.set_param(param_name, value)
+        self.model.set_param(param_name, value)
 
     def set_varying_param(self, param_name, values):
         """
@@ -114,8 +136,18 @@ class ParallelABM:
             parameter to test. Each value will be attributed to
             one model, and all values will be run in parallel.
         """
-        for param_val, model in zip(values, self.models):
-            model.set_param(param_name, param_val)
+        # Internally, the ParallelABM object only has a single ABM object,
+        # which is then copied by the parallel processes. As a result we cannot
+        # directly set multiple values for a parameter.
+        # Instead, we will need to set the varying parameter within the other
+        # processes, i.e. within the run_model() function (the one is that is
+        # called by the multiprocessing package).
+        # To do so, we'll structure that will let us remember which param needs
+        # to vary between the models. That structure is a list L of dictionaries,
+        # such that if L[i] = {'x': 1.3}, then model number i will have the param 'x'
+        # set to 1.3.
+        for n_model in range(self.n_models):
+            self.param_variations[n_model][param_name] = values[n_model]
 
     def run_simulations(self, initial_infections, days):
         """
@@ -131,8 +163,10 @@ class ParallelABM:
         print(f"Running {self.n_models} parallel simulations...")
         with mp.Pool(processes=self.n_models) as pool:
             # Launches each model by calling run_model(i) for model i
-            self.results = pool.starmap(run_model, [(model, initial_infections, days, seed)
-                                                    for model, seed in zip(self.models, self.seeds)])
+            # For each model, also indicates the initial (forced) infections, the random seed,
+            # as well as potential changes of parameters specific to that model.
+            self.results = pool.starmap(run_model, [(self.model, initial_infections, days, seed, param_changes)
+                                                    for seed, param_changes in zip(self.seeds, self.param_variations)])
         print("Simulations ended")
 
     def get_results_dataframe(self, timestep="daily"):
