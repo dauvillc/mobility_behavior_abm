@@ -3,7 +3,7 @@ Clément Dauvilliers - April 2nd 2023
 Tests the new version of the ABM.
 """
 import numpy as np
-from abm.model_v3 import ABM
+from abm.abm import ABM
 from abm.contacts import load_period_activities
 from abm.plotting import ABM_Plotter
 
