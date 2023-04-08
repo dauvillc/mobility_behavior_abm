@@ -30,11 +30,12 @@ class ABM:
         ----------
         params: Dictionary of parameters to give to the model,
             such as the recovery rate.
-        activity_data: Pair (LV, LF) as returned by contacts.load_period_activities().
-            - LV is the list of sparse visit matrices for every period;
+        activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
+            - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
-        population_dataset: DataFrame, optional. Dataset containing the agents' attributes.
+        population_dataset: DataFrame, optional. Dataset containing the agents' attributes (especially, social
+            and economic and health characteristics).
             If None, it will be loaded.
         pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
             characteristics of all agents regarding the probability of infection. If None,
@@ -55,11 +56,9 @@ class ABM:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
 
-        # Deduces some constants of the simulation from the visit matrices
-        # (those aren't kept in memory however)
-        visit_matrices_coo, _, _ = activity_data
-        self.n_facilities, self.n_agents = visit_matrices_coo[0].shape
-        self.n_periods = len(visit_matrices_coo)
+        # Retrieve some constants of the simulation:
+        (self.n_agents, self.n_facilities), agents_locations, _ = activity_data
+        self.n_periods = len(agents_locations)
 
         # Sets the parameters' default values
         self.set_default_param("recovery_mean_time", 8.0)
@@ -90,7 +89,7 @@ class ABM:
             test_characs = pop_test_characteristics
 
         # Builds the Population object
-        self.population = Population(self.n_agents, population_df, inf_characs, test_characs, activity_data,
+        self.population = Population(population_df, inf_characs, test_characs, activity_data,
                                      self.params, self.rng)
 
         # Timers

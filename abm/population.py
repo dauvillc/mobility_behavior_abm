@@ -28,7 +28,6 @@ class Population:
     """
 
     def __init__(self,
-                 n_agents,
                  population_dataset,
                  pop_inf_characteristics,
                  pop_test_characteristics,
@@ -38,7 +37,6 @@ class Population:
         """
         Parameters
         ----------
-        n_agents: Integer, number of agents in the simulation.
         population_dataset: DataFrame, optional. Dataset containing the agents' attributes.
             If None, it will be loaded.
         pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
@@ -47,14 +45,13 @@ class Population:
         pop_test_characteristics: optional, Float array of shape (n_agents). Values for the
             characteristics of all agents regarding the probability of being tested. If None,
             it will be computed using the parameters.
-        activity_data: Pair (LV, LF) as returned by contacts.load_period_activities().
-            - LV is the list of sparse visit matrices for every period;
+        activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
+            - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
-        params: dictionary, the same as the one passed to the ABM object.
         rng: optional, specific numpy random number generator to use.
         """
-        self.n_agents = n_agents
+        (self.n_agents, _), _, _ = activity_data
         self.population_dataset = population_dataset
         self.pop_inf_characteristics = pop_inf_characteristics
         self.pop_test_characteristics = pop_test_characteristics

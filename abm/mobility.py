@@ -19,17 +19,13 @@ class Mobility:
 
     def __init__(self, activity_data):
         """
-        activity_data: Pair (LV, LF) as returned by contacts.load_period_activities().
-            - LV is the list of sparse visit matrices for every period;
+        activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
+            - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
         """
-        visit_matrices, locations, activity_types = activity_data
-        self.locations = locations
-        self.activity_types = activity_types
-
-        self.n_periods = len(locations)
-        self.n_facilities, self.n_agents = visit_matrices[0].shape
+        (self.n_agents, self.n_facilities), self.locations, self.activity_types = activity_data
+        self.n_periods = len(self.locations)
 
         # Initializes the visitor counts
         # The following list will contain an array for each period. Each array V is of shape
