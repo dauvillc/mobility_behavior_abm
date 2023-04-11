@@ -28,11 +28,7 @@ if __name__ == "__main__":
 
     # ACTUAL TEST
     n_agents = population_df.shape[0]
-    population = Population(n_agents,
-                            population_df,
-                            inf_characs,
-                            test_characs,
-                            activity_data,
+    population = Population(activity_data,
                             params)
 
     assert population.get_state_count("susceptible") == n_agents
