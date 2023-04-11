@@ -181,3 +181,32 @@ class Population:
             # We also need to add the agents to the set of infected agents
             for id in agent_ids:
                 self.infected_agents_ids.add(id)
+
+    def change_agent_locations(self, agent_ids, new_facilities):
+        """
+        For a given set of agents, change their locations to a new one, for
+        every period.
+        Parameters
+        ----------
+        agent_ids: np array of integers, IDs of the agents whose location should be
+            affected.
+        new_facility_id: either an integer, or an array of same shape as agent_ids.
+            If an integer, ID of the facility to which all agents will be relocated.
+            If an array, ID of the facility to which each agent will be relocated.
+        """
+        # We're going to change the agents' locations using
+        # Mobility.change_agent_locations(); however that method does not
+        # change the count of infected visitors, because the Mobility object doesn't
+        # know which agents are infected.
+        # Therefore, we'll first remove the targeted infected agents from their former
+        # locations' infected counts, then change their locations, and finally re-add
+        # them to their new locations' infected counts.
+
+        # Step 1: Retrieve the infected agents within agent_ids:
+        infected_agents = self.get_subset_in_state(agent_ids, "infected")
+        # Step 2: Pretend to the Mobility object that they aren't infected anymore.
+        self.mobility.remove_infected_visitors(infected_agents)
+        # Step 3: Change the locations of all agents
+        self.mobility.change_agent_locations(agent_ids, new_facilities)
+        # Step 4: Set the infected agents back to infected for the Mobility object.
+        self.mobility.add_infected_visitors(infected_agents)

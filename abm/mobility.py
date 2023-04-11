@@ -26,6 +26,9 @@ class Mobility:
         """
         (self.n_agents, self.n_facilities), self.locations, self.activity_types = activity_data
         self.n_periods = len(self.locations)
+        # We'll save a copy of the locations, which will never be modified. This is in case the locations
+        # are modified at some point: we can always retrieve the original one using this copy.
+        self.original_locations = self.locations.copy()
 
         # Initializes the visitor counts
         # The following list will contain an array for each period. Each array V is of shape
@@ -137,3 +140,44 @@ class Mobility:
             specific_locations, counts = np.unique(self.locations[period][agent_ids], return_counts=True)
             # Removes them from the count of infected visitors
             self.infected_visitors[period][specific_locations] -= counts
+
+    def change_agent_locations(self, agent_ids, new_facilities):
+        """
+        For a given set of agents, change their locations to a new one, for
+        every period.
+        WARNING: This function does NOT change the counts of infected visitors.
+        It must be externally adjusted.
+        Parameters
+        ----------
+        agent_ids: np array of integers, IDs of the agents whose location should be
+            affected.
+        new_facility_id: either an integer, or an array of same shape as agent_ids.
+            If an integer, ID of the facility to which all agents will be relocated.
+            If an array, ID of the facility to which each agent will be relocated.
+        """
+        # Pre-compute some variables that are common between all periods
+        # We'll need the non-duplicated new locations and the count of agents at each new location.
+        # If the new location is an integer, we can make a simplification:
+        if isinstance(new_facilities, np.ndarray):
+            # If new_facilities is an array, we need to count for each new facility
+            # how many visitors it has gained.
+            new_locations_unique, new_counts = np.unique(new_facilities, return_counts=True)
+        elif isinstance(new_facilities, int) or isinstance(new_facilities, np.int64):
+            # If there's only a single new facility, then its number of new visitors
+            # is the number of agents that have been relocated into it.
+            new_locations_unique, new_counts = new_facilities, agent_ids.shape[0]
+        else:
+            raise ValueError("new_facilities should be either an int or a np array")
+
+        # We can now proceed to change the locations for every period:
+        for period in range(self.n_periods):
+            # First step: remove the agents from their previous facility.
+            # To do so, we need to remove them from the count of visitors.
+            former_locations, former_counts = np.unique(self.locations[period][agent_ids], return_counts=True)
+            self.visitors[period][former_locations] -= former_counts
+            # We can now change the locations
+            # Reminder: using self.original_locations, we'll still be able to retrieve the former locations.
+            # Remark: the following line works both if new_facilities is an array or an integer.
+            self.locations[period][agent_ids] = new_facilities
+            # We also need to add the agents to their new facilities' visitors counts
+            self.visitors[period][new_locations_unique] += new_counts
