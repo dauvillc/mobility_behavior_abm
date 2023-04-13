@@ -4,10 +4,12 @@ Tests the ABM class.
 """
 import numpy as np
 import pandas as pd
-from abm.contacts import load_period_activities
-from abm.model_v3 import ABM
+from abm import load_period_activities, ABM
 
 if __name__ == "__main__":
+    # Creates an RNG just in case we need one:
+    rng = np.random.default_rng(seed=42)
+
     # Loads the population socio-eco attributes
     print("Loading the population dataset..")
     population_df = pd.read_csv('data/abm/vaud/extracted/vaud_population.csv.gz', index_col='agent_index')
@@ -15,14 +17,16 @@ if __name__ == "__main__":
     print("Done")
     activity_data = load_period_activities()
 
-    # Builds the agents' characteristics
+    # Simulation parameters
     params = {
         'inf_params': {'age': 0.000},
         'test_params': {'age': 0.000},
-        'inf_fraction_param': 3.0,
-        'inf_lvl_error_term': -8.0,
+        'inf_fraction_param': 13,
+        'inf_lvl_error_term': -11.0,
+        'inf_proba_sigmoid_slope': 2.0,
         'test_inf_lvl_param': 1.0,
-        'test_error_term': 0,
+        'test_error_term': -2,
+        'test_proba_sigmoid_slope': 0.5,
         'recovery_mean_time': 8.0,
         'recovery_std_time': 2.0
     }
@@ -71,5 +75,23 @@ if __name__ == "__main__":
     # The following checks that there are no infected agents in the last days
     infected_agents_count = abm.results.get_per_period("infected agents")
     assert sum(infected_agents_count[-10:]) == 0
+
+    # Tests the activity reduction
+    forced_infections = [10, 20, 30, 40]
+    abm.force_simulation_start(forced_infections)
+    day, period = abm.day, abm.period  # current simulation date
+    some_agents = rng.integers(0, abm.n_agents, 15)  # Selects some random agents
+    # Run the simulation for less days than the duration of the reduction
+    duration_days, duration_periods = 5, 3
+    abm.reduce_mobility(some_agents, duration_days, duration_periods)
+    abm.run_simulation(duration_days - 1)
+    # Verifies that the agents are indeed confined
+    assert (abm.population.mobility.locations[0][some_agents] == 0).all()
+    # Runs the simulation until after the reduction is lifted
+    abm.run_simulation(2)
+    # Verifies that the agents aren't confined anymore, i.e. that their locations
+    # are equal to the original ones
+    assert (abm.population.mobility.locations[0][some_agents] == abm.population.mobility.original_locations[0][
+        some_agents]).all()
 
     print("Test successful !")

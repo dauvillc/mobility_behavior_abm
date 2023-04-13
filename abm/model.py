@@ -3,13 +3,12 @@ Clément Dauvilliers - April 2nd 2023
 Implements the ABM class, which is the mother class of the simulation.
 """
 import numpy as np
-import pandas as pd
-import abm.characteristics as ch
 from copy import deepcopy
 from abm.population import Population
 from abm.results import ABM_Results
 from abm.recovery import draw_recovery_times
 from abm.utils import sigmoid
+from abm.event import EventType, EventQueue
 
 
 class ABM:
@@ -79,6 +78,7 @@ class ABM:
         # Other variables that are defined here but initialized in init_simulation():
         self.period, self.day = None, None
         self.results = ABM_Results(self.n_periods)
+        self.event_queue = EventQueue()
         self.initialized = False
 
     def set_default_param(self, param, value):
@@ -132,6 +132,9 @@ class ABM:
         self.period, self.day = 0, 0
         # Initializes an empty results manager
         self.results = ABM_Results(self.n_periods)
+        # Initializes an empty events queue, which will be used for example
+        # to schedule the changes of mobility.
+        self.event_queue = EventQueue()
         # Resets the RNG
         if seed is None:
             seed = self.seed
@@ -303,6 +306,40 @@ class ABM:
         # for all still infected agents, reduce their recovery time by one period
         self.infection_timer[infected_agents] -= 1
 
+    def reduce_mobility(self, agent_ids, duration_days=0, duration_periods=0):
+        """
+        Reduces the mobility of a set of agents, for a given duration.
+        Parameters
+        ----------
+        agent_ids: ndarray of integers, IDs of the targeted agents.
+        duration_days: integer, optional. Duration of the reduction in days. Defaults
+            to zero, but cannot be equal to zero if duration_periods is 0 or not specified.
+        duration_periods: integer, optional. Duration of the reduction in periods.
+            Must be strictly inferior to the number of periods within a day. Defaults
+            to zero, but cannot be equal to zero if duration_days is 0 or not specified.
+
+        Raises
+        -------
+        ValueError: if duration_periods == duration_days == 0, or if duration_periods is superior
+            or equal to the number of periods within a day.
+        """
+        if duration_days == duration_periods == 0:
+            raise ValueError("duration_days and duration_periods cannot be unspecified or equal"
+                             " to zero at the same time.")
+        if duration_periods >= self.n_periods:
+            raise ValueError(f"duration_periods cannot be superior to the number of periods "
+                             f"within a day (got {duration_periods} but n_periods={self.n_periods}).")
+        # First: reduce the mobility of the targeted agents using the methods of Population:
+        # "confining" an agent is equivalent to setting its location to 0:
+        self.population.change_agent_locations(agent_ids, 0)
+        # Second: compute the date (day and period) on which the reduction will end:
+        end_period = (self.period + duration_periods) % self.n_periods
+        end_day = self.day + duration_days + (self.period + duration_periods) // self.n_periods
+        # Third: add an event to the event queue to indicate that the reduction has to be lifted.
+        # The info relative to the events is only the IDs of the targeted agents.
+        self.event_queue.add_event(end_day, end_period, EventType.MOBILITY_RESET,
+                                   [agent_ids])
+
     def iterate_day(self, n_forced_infections=None):
         """
         Processes a single day of simulation.
@@ -313,6 +350,10 @@ class ABM:
             over the day. In this case, the forced infections are uniformly spread over the periods.
         """
         for period in range(self.n_periods):
+            # === Events processing ===================
+            # An example of event is a group of agents coming out of quarantine
+            self.process_events()
+
             # === Recovery process ====================
             self.process_recovery()
 
@@ -391,3 +432,18 @@ class ABM:
             self.iterate_day()
         if verbose:
             print("Simulation ended. ")
+
+    def process_events(self):
+        """
+        Retrieves the events of the current simulation day and period,
+        and processes their effects.
+        """
+        events = self.event_queue.poll_events(self.day, self.period)
+        for event_type, event_info in events:
+            # Applies a different treatment depending on the event type
+            if event_type == EventType.MOBILITY_RESET:
+                # This event type corresponds to resetting the mobility of some agents,
+                # e.g. when they come out of quarantine.
+                # For this type of event, the info is the targeted agents' IDs.
+                agent_ids = event_info
+                self.population.reset_agent_locations(agent_ids)
