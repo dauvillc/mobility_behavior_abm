@@ -27,9 +27,8 @@ if __name__ == "__main__":
     simulation_days = 14
 
     # =========================== ABM SETUP ======================= #
-    activity_data = load_period_activities()
     rng = np.random.default_rng(seed=42)
-    models = ParallelABM(params, activity_data, n_models=4)
+    models = ParallelABM(params, n_models=4)
 
     # ========================== SIMULATION ======================= #
     # Performs a first batch of parallel simulations

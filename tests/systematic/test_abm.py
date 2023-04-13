@@ -4,18 +4,11 @@ Tests the ABM class.
 """
 import numpy as np
 import pandas as pd
-from abm import load_period_activities, ABM
+from abm import ABM
 
 if __name__ == "__main__":
     # Creates an RNG just in case we need one:
     rng = np.random.default_rng(seed=42)
-
-    # Loads the population socio-eco attributes
-    print("Loading the population dataset..")
-    population_df = pd.read_csv('data/abm/vaud/extracted/vaud_population.csv.gz', index_col='agent_index')
-    population_df = population_df.sort_index()
-    print("Done")
-    activity_data = load_period_activities()
 
     # Simulation parameters
     params = {
@@ -31,7 +24,7 @@ if __name__ == "__main__":
         'recovery_std_time': 2.0
     }
     # Builds the ABM object
-    abm = ABM(params, activity_data)
+    abm = ABM(params)
 
     # ACTUAL TEST
     # Tests the forced simulation start ========================================
@@ -81,7 +74,7 @@ if __name__ == "__main__":
     abm.force_simulation_start(forced_infections)
     day, period = abm.day, abm.period  # current simulation date
     some_agents = rng.integers(0, abm.n_agents, 15)  # Selects some random agents
-    # Run the simulation for less days than the duration of the reduction
+    # Run the simulation for fewer days than the duration of the reduction
     duration_days, duration_periods = 5, 3
     abm.reduce_mobility(some_agents, duration_days, duration_periods)
     abm.run_simulation(duration_days - 1)

@@ -3,8 +3,7 @@ Clément Dauvilliers - April 2nd 2023
 Tests the new version of the ABM.
 """
 import numpy as np
-from abm.abm import ABM
-from abm.contacts import load_period_activities
+from abm.model import ABM
 from abm.plotting import ABM_Plotter
 
 if __name__ == "__main__":
@@ -27,8 +26,7 @@ if __name__ == "__main__":
     n_periods = 24
 
     # =========================== ABM SETUP ======================= #
-    activity_data = load_period_activities()
-    abm = ABM(params, activity_data)
+    abm = ABM(params)
 
     # ==================== FORCED SIMULATION ====================== #
     forced_infections = [10, 50, 75, 100, 125, 150, 200]

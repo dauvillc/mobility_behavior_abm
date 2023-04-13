@@ -4,6 +4,7 @@ Implements the ABM class, which is the mother class of the simulation.
 """
 import numpy as np
 from copy import deepcopy
+from abm.contacts import load_period_activities
 from abm.population import Population
 from abm.results import ABM_Results
 from abm.recovery import draw_recovery_times
@@ -18,10 +19,8 @@ class ABM:
     in a static manner.
     """
 
-    def __init__(self, params, activity_data,
+    def __init__(self, params, activity_data=None,
                  population_dataset=None,
-                 pop_inf_characteristics=None,
-                 pop_test_characteristics=None,
                  seed=42):
         """
 
@@ -29,22 +28,14 @@ class ABM:
         ----------
         params: Dictionary of parameters to give to the model,
             such as the recovery rate.
-        activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
+        activity_data: optional, Triplet (N, LV, LF) as returned by contacts.load_period_activities().
             - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
+            If not given, will be automatically loaded from the default location in simulation_config.yml.
         population_dataset: DataFrame, optional. Dataset containing the agents' attributes (especially, social
             and economic and health characteristics).
             If None, it will be loaded.
-        pop_inf_characteristics: optional, Float array of shape (n_agents). Values for the
-            characteristics of all agents regarding the probability of infection. If None,
-            it will be computed using the parameters.
-        pop_test_characteristics: optional, Float array of shape (n_agents). Values for the
-            characteristics of all agents regarding the probability of being tested. If None,
-            it will be computed using the parameters.
-        visitors_counts: List of Integer arrays of shape (n_facilities), optional. Number of visitors
-            per period, per facility, not accounting for activity reduction. If None, it will
-            be computed from the activity matrix.
         seed: Random seed to use.
 
         Returns
@@ -54,6 +45,10 @@ class ABM:
         self.params = deepcopy(params)
         self.seed = seed
         self.set_seed(seed)
+
+        # Load the activity data from the default location, if not given:
+        if activity_data is None:
+            activity_data = load_period_activities()
 
         # Retrieve some constants of the simulation:
         (self.n_agents, self.n_facilities), agents_locations, _ = activity_data
@@ -66,8 +61,7 @@ class ABM:
         self.set_default_param("test_proba_sigmoid_slope", 1.0)
 
         # Builds the Population object
-        self.population = Population(activity_data, self.params, population_dataset, pop_inf_characteristics,
-                                     pop_test_characteristics, self.rng)
+        self.population = Population(self.params, activity_data, population_dataset, self.rng)
 
         # Timers
         # they are only defined here, not initialized. It's not mandatory in Python,
@@ -103,17 +97,31 @@ class ABM:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
 
-    def set_param(self, param_name, value):
+    def set_param(self, param_name, value, population_dataset):
         """
         Sets the value of a given parameter.
+        If the param is 'inf_params' or 'test_params' (i.e. the weights
+        associated with the socio-eco / health-related attributes), then also
+        recomputes the characteristics.
         WARNING: using this method on a model that is being run might
         result in unpredictable behavior.
         Parameters
         ----------
         param_name: str, name of the parameter to set.
         value: new value for the parameter.
+        population_dataset: pandas DataFrame, optional. Dataset containing the
+            agents' attributes. Must be given when param_name is either "test_params" or
+            "inf_params".
         """
+        # Remark: self.params and self.population.params point towards the same object.
+        # Hence, we're also changing self.population.params by doing this:
         self.params[param_name] = value
+        # If the param that was changed is among the weights for the level of infection
+        # or for the test interest, then we must re-compute the scalar products (that are pre-computed).
+        if param_name in ["test_params", "inf_params"]:
+            if population_dataset is None:
+                raise ValueError("population_dataset must be given if param_name=", param_name)
+            self.population.compute_agents_characteristics(population_dataset)
 
     def init_simulation(self, seed=None):
         """

@@ -5,6 +5,7 @@ Implements the Population clas, which stores all information about the agents, i
 import numpy as np
 from abm.mobility import Mobility
 from abm.characteristics import compute_characteristics, load_population_dataset
+from abm.contacts import load_period_activities
 
 # Dictionary that maps the names of the states to integers
 states_dict = {
@@ -27,11 +28,9 @@ class Population:
     """
 
     def __init__(self,
-                 activity_data,
                  params,
+                 activity_data=None,
                  population_dataset=None,
-                 pop_inf_characteristics=None,
-                 pop_test_characteristics=None,
                  rng=None):
         """
         Parameters
@@ -39,20 +38,21 @@ class Population:
         population_dataset: DataFrame, optional. Dataset containing the agents' attributes (especially, social
             and economic and health characteristics).
             If None, it will be loaded from the file indicated in the config file.
-        pop_inf_characteristics: Float array of shape (n_agents), optional. Values for the
-            characteristics of all agents regarding the probability of infection.
-            If not given, will be computed.
-        pop_test_characteristics: Float array of shape (n_agents), optional. Values for the
-            characteristics of all agents regarding the probability of being tested.
-            If not given, will be computed.
-        activity_data: Triplet (N, LV, LF) as returned by contacts.load_period_activities().
+        activity_data: optional, Triplet (N, LV, LF) as returned by contacts.load_period_activities().
             - N is the pair of integers (number of agents, number of facilities).
             - LF is the list of locations of all agents during each period.
             - LT is the list of activity types of all activities during each period.
+            If not given, will be loaded from the default path indicated in simulation_config.yml.
         rng: optional, specific numpy random number generator to use.
         """
+        # Load the activity data if not given
+        if activity_data is None:
+            activity_data = load_period_activities()
+
+        # Fetch the number of agents from the activity data
         (self.n_agents, _), _, _ = activity_data
         self.params = params
+        # Creates an RNG unless one was given
         if rng is None:
             self.rng = np.random.default_rng(seed=42)
         else:
@@ -61,20 +61,8 @@ class Population:
         # Builds the agents' characteristics if required ===================
         # Begins by loading the population dataset:
         if population_dataset is None:
-            population_df = load_population_dataset()
-        else:
-            population_df = population_dataset
-        # For the probability of infection
-        if pop_inf_characteristics is None:
-            self.pop_inf_characteristics = compute_characteristics(population_df, self.params['inf_params'])
-        else:
-            self.pop_inf_characteristic = pop_inf_characteristics
-
-        # For the probability of being tested
-        if pop_test_characteristics is None:
-            self.pop_test_characteristics = compute_characteristics(population_df, self.params['test_params'])
-        else:
-            self.pop_test_characteristics = pop_test_characteristics
+            population_dataset = load_population_dataset()
+        self.compute_agents_characteristics(population_dataset)
         # =====================================================================
 
         # Initializes the Mobility object
@@ -110,6 +98,17 @@ class Population:
         self.infected_agents_ids = set()
         # Resets the Mobility object
         self.mobility.reset()
+
+    def compute_agents_characteristics(self, population_df):
+        """
+        Computes / updates the agents' characteristics, i.e. the scalar products
+        <beta_inf, X_inf> and <beta_test, X_test>, where X is the agents' attributes (soc-eco, and
+        health-related).
+        """
+        # For the probability of infection
+        self.pop_inf_characteristics = compute_characteristics(population_df, self.params['inf_params'])
+        # For the probability of being tested
+        self.pop_test_characteristics = compute_characteristics(population_df, self.params['test_params'])
 
     def get_state_count(self, state: str):
         """

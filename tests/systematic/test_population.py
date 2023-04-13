@@ -9,13 +9,6 @@ from abm.contacts import load_period_activities
 from abm.population import Population
 
 if __name__ == "__main__":
-    # Loads the population socio-eco attributes
-    print("Loading the population dataset..")
-    population_df = pd.read_csv('data/abm/vaud/extracted/vaud_population.csv.gz', index_col='agent_index')
-    population_df = population_df.sort_index()
-    print("Done")
-    activity_data = load_period_activities()
-
     # Builds the agents' characteristics
     params = {
         'inf_params': {'age': 0.000},
@@ -23,13 +16,10 @@ if __name__ == "__main__":
         'recovery_mean_time': 8.0,
         'recovery_std_time': 2.0
     }
-    inf_characs = ch.compute_characteristics(population_df, params['inf_params'])
-    test_characs = ch.compute_characteristics(population_df, params['test_params'])
 
     # ACTUAL TEST
-    n_agents = population_df.shape[0]
-    population = Population(activity_data,
-                            params)
+    population = Population(params)
+    n_agents = population.n_agents
     n_periods = population.mobility.n_periods
 
     assert population.get_state_count("susceptible") == n_agents
@@ -69,7 +59,7 @@ if __name__ == "__main__":
     assert population.get_state_count("recovered") == 0
     assert len(population.infected_agents_ids) == 0
     # verifies that the mobility is identical to the original one.
-    assert (population.mobility.get_locations(0) == activity_data[1][0]).all()
+    assert (population.mobility.get_locations(0) == population.mobility.original_locations[0]).all()
     print("Part 3 (Reset) successful !")
 
     # Checks the mobility modification method when no one is infected ===========================
