@@ -94,22 +94,38 @@ if __name__ == "__main__":
 
     # Now, reset the population, and do the same tests but this time with infected agents.
     population.reset()
+    # Saves the state of the counters before we change the mobility, for later
+    visitors_before_change = population.mobility.visitors[0].copy()
+    inf_visitors_before_change = population.mobility.infected_visitors[0].copy()
+    locations_before_change = population.mobility.locations[0].copy()
+    # ==== With a single new location (every agent to the same new location) ======================
+    # Sets some agents as infected
     infected_agents = some_agents[:15]
     population.set_agents_state(infected_agents, "infected")
+    # Saves how many infected agents are at the future locations, before the mobility change
     former_inf_count = population.mobility.infected_visitors[0][new_location]
+    # Changes the agents' locations the new ones
     population.change_agent_locations(some_agents, new_facilities=new_location)
+    # Retrieves how many infected agents are at the new locations, after the change
     new_inf_count = population.mobility.infected_visitors[0][new_location]
     # verifies that the infected visitors count of the new location has increased by the right amount
     assert new_inf_count == former_inf_count + infected_agents.shape[0]
-    # Changes their locations to some random ones
+
+    # === With a different new location for every agent ==========================
+    # Generates some random new facilities
     new_facilities = [rng.integers(new_location, population.mobility.n_facilities, some_agents.shape)
                       for _ in range(n_periods)]
+    # Changes the mobility, with the generated facilities
     new_facilities_unique = np.unique(new_facilities[0])
     former_inf_counts = population.mobility.infected_visitors[0][new_facilities_unique]
     population.change_agent_locations(some_agents, new_facilities=new_facilities)
     new_inf_counts = population.mobility.infected_visitors[0][new_facilities_unique]
     # Verifies that the infected visitors in the new facilities has increased by the right amount
     assert former_inf_counts.sum() + infected_agents.shape[0] == new_inf_counts.sum()
+    # Reset the mobility changes to verify that the counters are back to normal
+    population.reset_agent_locations(some_agents)
+    assert (locations_before_change == population.mobility.locations[0]).all()
+    assert (visitors_before_change == population.mobility.visitors[0]).all()
     print("Part 5 (Mobility change with infections) successful !")
 
     print("Test successful !")

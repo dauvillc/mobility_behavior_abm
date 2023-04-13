@@ -52,10 +52,15 @@ class Mobility:
         # and store it.
         self.visitors, self.infected_visitors = [], []
         for period in range(self.n_periods):
+            # Sets the agents' locations for that period to their original values
+            self.locations[period] = self.original_locations[period].copy()
+            # Count how many visitors are in each facility
             visitors = np.zeros(self.n_facilities, dtype=np.int)
             facilities, counts = np.unique(self.locations[period], return_counts=True)
             visitors[facilities] += counts
+            # Save the computed counts
             self.visitors.append(visitors)
+            # The counts of infected visitors is for now zero everywhere
             self.infected_visitors.append(np.zeros(self.n_facilities, dtype=np.int))
 
     def get_visitors(self, period):
@@ -186,9 +191,6 @@ class Mobility:
         ----------
         agent_ids: ndarray of integers, IDs of the targeted agents.
         """
-        for period in range(self.n_periods):
-            # Retrieves the original locations of the agents, which have been saved:
-            original_locations = self.original_locations[period][agent_ids]
-            # Sets the locations just like any mobility change:
-            # TODO
-            pass
+        # Retrieves the original locations for every agent and every period:
+        original_locations = [self.original_locations[period][agent_ids] for period in range(self.n_periods)]
+        self.change_agent_locations(agent_ids, original_locations)

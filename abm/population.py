@@ -213,3 +213,12 @@ class Population:
         self.mobility.change_agent_locations(agent_ids, new_facilities)
         # Step 4: Set the infected agents back to infected for the Mobility object.
         self.mobility.add_infected_visitors(infected_agents)
+
+    def reset_agent_locations(self, agent_ids):
+        """
+        Resets the locations of a set of agents back to their original values.
+        Parameters
+        ----------
+        agent_ids: ndarray of integers, IDs of the targeted agents.
+        """
+        self.mobility.reset_locations(agent_ids)
