@@ -97,7 +97,7 @@ class ABM:
         self.seed = seed
         self.rng = np.random.default_rng(seed=seed)
 
-    def set_param(self, param_name, value, population_dataset):
+    def set_param(self, param_name, value, population_dataset=None):
         """
         Sets the value of a given parameter.
         If the param is 'inf_params' or 'test_params' (i.e. the weights
