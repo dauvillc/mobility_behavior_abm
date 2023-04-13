@@ -30,6 +30,7 @@ if __name__ == "__main__":
     n_agents = population_df.shape[0]
     population = Population(activity_data,
                             params)
+    n_periods = population.mobility.n_periods
 
     assert population.get_state_count("susceptible") == n_agents
 
@@ -81,8 +82,9 @@ if __name__ == "__main__":
     # verifies that the visitors count of the new location has increased by the right amount
     assert new_count == former_count + some_agents.shape
     # Changes their locations to some random ones
-    new_facilities = rng.integers(new_location, population.mobility.n_facilities, some_agents.shape)
-    new_facilities_unique = np.unique(new_facilities)
+    new_facilities = [rng.integers(new_location, population.mobility.n_facilities, some_agents.shape)
+                      for _ in range(n_periods)]
+    new_facilities_unique = np.unique(new_facilities[0])
     former_counts = population.mobility.visitors[0][new_facilities_unique]
     population.change_agent_locations(some_agents, new_facilities=new_facilities)
     new_counts = population.mobility.visitors[0][new_facilities_unique]
@@ -100,14 +102,14 @@ if __name__ == "__main__":
     # verifies that the infected visitors count of the new location has increased by the right amount
     assert new_inf_count == former_inf_count + infected_agents.shape[0]
     # Changes their locations to some random ones
-    new_facilities = rng.integers(new_location, population.mobility.n_facilities, some_agents.shape)
-    new_facilities_unique = np.unique(new_facilities)
+    new_facilities = [rng.integers(new_location, population.mobility.n_facilities, some_agents.shape)
+                      for _ in range(n_periods)]
+    new_facilities_unique = np.unique(new_facilities[0])
     former_inf_counts = population.mobility.infected_visitors[0][new_facilities_unique]
     population.change_agent_locations(some_agents, new_facilities=new_facilities)
     new_inf_counts = population.mobility.infected_visitors[0][new_facilities_unique]
     # Verifies that the infected visitors in the new facilities has increased by the right amount
     assert former_inf_counts.sum() + infected_agents.shape[0] == new_inf_counts.sum()
     print("Part 5 (Mobility change with infections) successful !")
-
 
     print("Test successful !")

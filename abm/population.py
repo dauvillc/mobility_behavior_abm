@@ -190,9 +190,12 @@ class Population:
         ----------
         agent_ids: np array of integers, IDs of the agents whose location should be
             affected.
-        new_facility_id: either an integer, or an array of same shape as agent_ids.
+        new_facilites: either an integer, or a list of arrays.
             If an integer, ID of the facility to which all agents will be relocated.
-            If an array, ID of the facility to which each agent will be relocated.
+            If a list, should give the new locations of the agents for each period.
+                In details, a list L containing n_periods elements such that for a period p,
+                L[p] is an array such that L[p][i] is the new location of agent agent_ids[i]
+                during period p.
         """
         # We're going to change the agents' locations using
         # Mobility.change_agent_locations(); however that method does not

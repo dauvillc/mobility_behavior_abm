@@ -151,25 +151,13 @@ class Mobility:
         ----------
         agent_ids: np array of integers, IDs of the agents whose location should be
             affected.
-        new_facility_id: either an integer, or an array of same shape as agent_ids.
+        new_facilities: either an integer, or a list of arrays.
             If an integer, ID of the facility to which all agents will be relocated.
-            If an array, ID of the facility to which each agent will be relocated.
+            If a list, should give the new locations of the agents for each period.
+                In details, a list L containing n_periods elements such that for a period p,
+                L[p] is an array such that L[p][i] is the new location of agent agent_ids[i]
+                during period p.
         """
-        # Pre-compute some variables that are common between all periods
-        # We'll need the non-duplicated new locations and the count of agents at each new location.
-        # If the new location is an integer, we can make a simplification:
-        if isinstance(new_facilities, np.ndarray):
-            # If new_facilities is an array, we need to count for each new facility
-            # how many visitors it has gained.
-            new_locations_unique, new_counts = np.unique(new_facilities, return_counts=True)
-        elif isinstance(new_facilities, int) or isinstance(new_facilities, np.int64):
-            # If there's only a single new facility, then its number of new visitors
-            # is the number of agents that have been relocated into it.
-            new_locations_unique, new_counts = new_facilities, agent_ids.shape[0]
-        else:
-            raise ValueError("new_facilities should be either an int or a np array")
-
-        # We can now proceed to change the locations for every period:
         for period in range(self.n_periods):
             # First step: remove the agents from their previous facility.
             # To do so, we need to remove them from the count of visitors.
@@ -177,7 +165,30 @@ class Mobility:
             self.visitors[period][former_locations] -= former_counts
             # We can now change the locations
             # Reminder: using self.original_locations, we'll still be able to retrieve the former locations.
-            # Remark: the following line works both if new_facilities is an array or an integer.
-            self.locations[period][agent_ids] = new_facilities
-            # We also need to add the agents to their new facilities' visitors counts
-            self.visitors[period][new_locations_unique] += new_counts
+            # The code depends on whether new_facilities is a integer or a list of arrays
+            if isinstance(new_facilities, int) or isinstance(new_facilities, np.int64):
+                # Changes the locations for that period
+                self.locations[period][agent_ids] = new_facilities
+                # Adds the agents to their new facilities' visitors counts
+                self.visitors[period][new_facilities] += agent_ids.shape[0]
+            else:
+                # Changes the locations for that period
+                self.locations[period][agent_ids] = new_facilities[period]
+                # Adds the agents to their new facilities' visitors counts, but this time
+                # we have to count the number of new agent in each location.
+                new_locations_unique, counts = np.unique(new_facilities[period], return_counts=True)
+                self.visitors[period][new_locations_unique] += counts
+
+    def reset_locations(self, agent_ids):
+        """
+        Resets the locations of a set of agents back to their original values.
+        Parameters
+        ----------
+        agent_ids: ndarray of integers, IDs of the targeted agents.
+        """
+        for period in range(self.n_periods):
+            # Retrieves the original locations of the agents, which have been saved:
+            original_locations = self.original_locations[period][agent_ids]
+            # Sets the locations just like any mobility change:
+            # TODO
+            pass
