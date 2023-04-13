@@ -1,2 +1,3 @@
 paths:
   population_dataset: 'data/abm/vaud/extracted/vaud_population.csv.gz'
+  activities_dataset_dir: 'data/abm/vaud/prepared/period_activities/'
