@@ -15,4 +15,5 @@ dependencies:
   - networkx
   - scikit-learn
   - pyyaml
+  - pudb
 prefix: /home/clement/epfl/mobility_behavior_abm/env
