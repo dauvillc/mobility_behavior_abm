@@ -2,12 +2,13 @@ name: abm
 channels:
   - defaults
   - conda-forge
+  - plotly
 dependencies:
   - python-kaleido
   - tqdm
   - scipy==1.9.3
   - imageio
-  - plotly
+  - plotly::plotly
   - pandas=1.5.2
   - seaborn
   - jupyterlab
