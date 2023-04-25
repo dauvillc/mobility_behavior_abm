@@ -61,7 +61,8 @@ class ABM:
         self.set_default_param("test_proba_sigmoid_slope", 1.0)
 
         # Builds the Population object
-        self.population = Population(self.params, activity_data, population_dataset, self.rng)
+        self.population = Population(self.params, activity_data,
+                                     population_dataset, self.rng)
 
         # Timers
         # they are only defined here, not initialized. It's not mandatory in Python,
@@ -120,7 +121,9 @@ class ABM:
         # or for the test interest, then we must re-compute the scalar products (that are pre-computed).
         if param_name in ["test_params", "inf_params"]:
             if population_dataset is None:
-                raise ValueError("population_dataset must be given if param_name=", param_name)
+                raise ValueError(
+                    "population_dataset must be given if param_name=",
+                    param_name)
             self.population.compute_agents_characteristics(population_dataset)
 
     def init_simulation(self, seed=None):
@@ -225,22 +228,27 @@ class ABM:
             # Retrieves the facilities that the agents are currently located at.
             locations = self.population.mobility.get_locations(self.period)
             # Retrieves the number of visitors within each of those facilities
-            visitors = self.population.mobility.get_visitors(self.period)[locations]
+            visitors = self.population.mobility.get_visitors(self.period)[
+                locations]
             # Retrieves the number of infected visitors within each facility
-            infected_visitors = self.population.mobility.get_infected_visitors(self.period)[locations]
+            infected_visitors = \
+                self.population.mobility.get_infected_visitors(self.period)[
+                    locations]
             # We can now compute the fraction of infected visitors within each facility
             infected_fractions = infected_visitors / visitors
 
             # Computation of the levels of infection:
             error_term = self.params['inf_lvl_error_term']
             # Term related to the fraction of infected visitors at the facility
-            fraction_term = self.params['inf_fraction_param'] * infected_fractions
+            fraction_term = self.params[
+                                'inf_fraction_param'] * infected_fractions
             # Scalar product between the betas and the social, economic and sanitary characteristics
             attributes_term = self.population.pop_inf_characteristics
             infection_levels = fraction_term + attributes_term + error_term
 
             # === Probability of infection ===========
-            infection_probas = sigmoid(self.params['inf_proba_sigmoid_slope'] * infection_levels)
+            infection_probas = sigmoid(
+                self.params['inf_proba_sigmoid_slope'] * infection_levels)
 
             # === Selection of the infected agents ===
             # Randomly draws which agents will be infected based on their infection probability.
@@ -256,7 +264,8 @@ class ABM:
             infected_agents = np.where(infected_mask)[0]
 
         # Finally: make sure that only "susceptible" agents can become infected:
-        infected_agents = self.population.get_subset_in_state(infected_agents, "susceptible")
+        infected_agents = self.population.get_subset_in_state(infected_agents,
+                                                              "susceptible")
 
         return infection_levels, infected_agents
 
@@ -287,7 +296,8 @@ class ABM:
         test_interest = inf_lvl_term + attributes_term + error_term
 
         # Step 2: deduce the probabilities of test
-        test_probas = sigmoid(self.params['test_proba_sigmoid_slope'] * test_interest)
+        test_probas = sigmoid(
+            self.params['test_proba_sigmoid_slope'] * test_interest)
 
         # Step 3: draw which agents are tested based on the test probabilities
         tested_boolean = self.rng.random(self.n_agents) < test_probas
@@ -309,7 +319,8 @@ class ABM:
         # First: retrieve the IDs of all currently infected agents
         infected_agents = self.population.get_infected_agents()
         # for all agents whose infection time has reached zero, they recover
-        recovering_agents = infected_agents[self.infection_timer[infected_agents] == 0]
+        recovering_agents = infected_agents[
+            self.infection_timer[infected_agents] == 0]
         self.population.set_agents_state(recovering_agents, "recovered")
         # for all still infected agents, reduce their recovery time by one period
         self.infection_timer[infected_agents] -= 1
@@ -332,20 +343,24 @@ class ABM:
             or equal to the number of periods within a day.
         """
         if duration_days == duration_periods == 0:
-            raise ValueError("duration_days and duration_periods cannot be unspecified or equal"
-                             " to zero at the same time.")
+            raise ValueError(
+                "duration_days and duration_periods cannot be unspecified or equal"
+                " to zero at the same time.")
         if duration_periods >= self.n_periods:
-            raise ValueError(f"duration_periods cannot be superior to the number of periods "
-                             f"within a day (got {duration_periods} but n_periods={self.n_periods}).")
+            raise ValueError(
+                f"duration_periods cannot be superior to the number of periods "
+                f"within a day (got {duration_periods} but n_periods={self.n_periods}).")
         # First: reduce the mobility of the targeted agents using the methods of Population:
         # "confining" an agent is equivalent to setting its location to 0:
         self.population.change_agent_locations(agent_ids, 0)
         # Second: compute the date (day and period) on which the reduction will end:
         end_period = (self.period + duration_periods) % self.n_periods
-        end_day = self.day + duration_days + (self.period + duration_periods) // self.n_periods
+        end_day = self.day + duration_days + (
+                self.period + duration_periods) // self.n_periods
         # Third: add an event to the event queue to indicate that the reduction has to be lifted.
         # The info relative to the events is only the IDs of the targeted agents.
-        self.event_queue.add_event(end_day, end_period, EventType.MOBILITY_RESET,
+        self.event_queue.add_event(end_day, end_period,
+                                   EventType.MOBILITY_RESET,
                                    [agent_ids])
 
     def iterate_day(self, n_forced_infections=None):
@@ -370,8 +385,10 @@ class ABM:
                 # The forced infections are uniformly spread over the periods. To do so,
                 # we need to compute the proba for every agent, during each period, to be
                 # randomly selected:
-                infection_proba = n_forced_infections / (self.n_periods * self.n_agents)
-                infection_levels, infected_agents = self.process_infections(forced_infection_proba=infection_proba)
+                infection_proba = n_forced_infections / (
+                        self.n_periods * self.n_agents)
+                infection_levels, infected_agents = self.process_infections(
+                    forced_infection_proba=infection_proba)
             else:
                 # Computes the levels of infection, and selects the agents which become infected
                 infection_levels, infected_agents = self.process_infections()
@@ -384,17 +401,23 @@ class ABM:
 
             # === Storing per-period results ==========
             # Number of new infections
-            self.results.store_per_period("new infections", infected_agents.shape[0])
+            self.results.store_per_period("new infections",
+                                          infected_agents.shape[0])
             # Number of currently infected agents
-            self.results.store_per_period("infected agents", self.population.get_state_count("infected"))
+            self.results.store_per_period("infected agents",
+                                          self.population.get_state_count(
+                                              "infected"))
             # Number of currently recovered agents
-            self.results.store_per_period("recovered agents", self.population.get_state_count("recovered"))
+            self.results.store_per_period("recovered agents",
+                                          self.population.get_state_count(
+                                              "recovered"))
             # Number of tested agents
             self.results.store_per_period("tests", tested.shape[0])
             # Number of positive tests
             self.results.store_per_period("positive tests", tested_pos.shape[0])
             # IDs of the currently infected agents
-            self.results.store("infected agents IDs", self.population.get_infected_agents())
+            self.results.store("infected agents IDs",
+                               self.population.get_infected_agents())
 
             # === Variables update ====================
             self.period = (1 + self.period) % self.n_periods

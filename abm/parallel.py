@@ -7,11 +7,10 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import abm.characteristics as ch
-from abm.contacts import load_period_activities
 from abm.model import ABM
 
 
-def run_model(model, initial_infections, days):
+def run_model(model, initial_infections, days, seed, param_variations, population_dataset):
     """
     Runs a given ABM.
     Parameters
@@ -22,11 +21,20 @@ def run_model(model, initial_infections, days):
         infections to force for the first days of the simulation.
         initial_infections[d] should be an integer giving the number of
         new infections occurring on day d.
+    seed: random seed to use for the model.
+    param_variations: dictionary {param_name: value} that indicates changes that should
+        be applied to the model before beginning.
+    population_dataset: pandas DataFrame containing the agents' attributes.
 
     Returns
     -------
     The Results object from the run model.
     """
+    # Apply the potential parameter changes
+    for param, value in param_variations.items():
+        model.set_param(param, value, population_dataset)
+    # Sets the model's seed
+    model.set_seed(seed)
     # Sets the model's initial conditions
     model.force_simulation_start(initial_infections)
     # Runs the simulation
@@ -159,22 +167,11 @@ class ParallelABM:
         """
         print(f"Starting {self.n_models} parallel simulations...")
         with mp.Pool(processes=self.n_models) as pool:
-            # List that will contain the status and results of each subprocess
-            status = []
-            for seed, param_changes in zip(self.seeds, self.param_variations):
-                # Apply the potential parameter changes
-                for param, value in param_changes.items():
-                    self.model.set_param(param, value)
-                # Sets the model's seed
-                self.model.set_seed(seed)
-                # Launches a child process that performs the simulation with the given seed and params.
-                status.append(pool.apply_async(run_model, args=(self.model, initial_infections, days)))
-            # Now that we've started every child process, we need to wait for them to finish:
-            print("Waiting for the results...")
-            self.results = []
-            for process_result in status:
-                # process_result.get() will block until the results are ready
-                self.results.append(process_result.get())
+            self.results = pool.starmap(run_model, [(self.model, initial_infections, days,
+                                                     seed, param_variations, self.population_df)
+                                                    for seed, param_variations in
+                                                    zip(self.seeds, self.param_variations)
+                                                    ])
         print("Simulations ended")
 
     def get_results_dataframe(self, timestep="daily"):
