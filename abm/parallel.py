@@ -115,16 +115,24 @@ class ParallelABM:
         # Resets the list of varying parameters (see set_varying_param() )
         self.param_variations = [dict() for _ in range(self.n_models)]
 
-    def set_param(self, param_name, value):
+    def set_param(self, param_name, value, population_dataset=None):
         """
-        Sets the value of a given simulation parameter.
+        Sets the value of a given parameter.
+        If the param is 'inf_params' or 'test_params' (i.e. the weights
+        associated with the socio-eco / health-related attributes), then also
+        recomputes the characteristics.
+        WARNING: using this method on a model that is being run might
+        result in unpredictable behavior.
         Parameters
         ----------
-        param_name: String, name of the parameter.
+        param_name: str, name of the parameter to set.
         value: new value for the parameter.
+        population_dataset: pandas DataFrame, optional. Dataset containing the
+            agents' attributes. Must be given when param_name is either "test_params" or
+            "inf_params".
         """
         self.params[param_name] = value
-        self.model.set_param(param_name, value)
+        self.model.set_param(param_name, value, population_dataset)
 
     def set_varying_param(self, param_name, values):
         """
