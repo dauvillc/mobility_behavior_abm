@@ -1,7 +1,7 @@
 """
 Clément DAUVILLIERS - 20/09/2022 - EPFL Transport and Mobility Lab
 
-Usage: python3 scripts/preprocess_matsim_data.py [--help] [--age_groups]
+Usage: python scripts/preprocess_matsim_data.py [options] activities_dataset_path
 Parses the MATSIM activities extracted from the output XML plans file. Adds the age
 of every individual alongside the activities. Processes the activities' starting and ending times
 to turn them into periods (e.g., from 09:00:00 to 11:00:00).
@@ -15,26 +15,19 @@ import os
 from optparse import OptionParser
 from tqdm import tqdm
 
-# PATHS
-# Path to the whole activities csv extracted from the MATSIM XML results file (plans)
-MATSIM_ACTIVITIES_PATH = "data/extracted_data/matsim_population_activities.csv"
-# Path to the whole individual attributes csv extracted from the XML file too
-MATSIM_ATTRIBUTES_PATH = "data/extracted_data/matsim_population_attributes.csv"
 # Destination file
 DEST_FILE = "data/preprocessed/preprocessed_activities.csv.gz"
 
 if __name__ == "__main__":
     # PARSING OPTIONS
-    optparser = OptionParser()
+    optparser = OptionParser(usage="python scripts/preprocess_data.py [options] activities_dataset_path")
     optparser.add_option('--output', '-o', action="store", dest="output_file",
                          default=DEST_FILE, help="Where to write the results. The file should have the .csv.gz"
                                                  "extension")
-    optparser.add_option('--chunksize', action="store", dest="chunksize", type="int", default=1000000,
+    optparser.add_option('--chunksize', '-c', action="store", dest="chunksize", type="int", default=1000000,
                          help="Number of CSV rows to process at once (Default: 1,000,000). A "
                               "larger value will lead to a shorter processing time, but requires more"
                               " memory.")
-    optparser.add_option("--age_groups", action="store_true", dest="age_groups", default=False,
-                         help="Transform the age into age groups [default: don't]")
     optparser.add_option("--explode_periods", action='store_true', dest='explode_periods',
                          default=True,
                          help="If False (default True), a single row will be output for each activity, indicating its "
@@ -47,12 +40,16 @@ if __name__ == "__main__":
     optparser.add_option('--period_length', action="store_const", dest="period_length", default="H",
                          help="pandas string period indicator, such as 'H' for an hour or '30T' for 30 minutes. "
                               "Indicates the length of the time periods when approximating the activities' starting"
-                              "and ending times. For example, 'H' will generate to periods such as '09:00' to '10:00'.")
+                              " and ending times. For example, 'H' will generate to periods such as '09:00' to '10:00'."
+                              " Defaults to 1 hour. ")
     optparser.add_option('--save_activity_times', action="store_true", dest="save_activity_times", default=False,
                          help="If specified, the script will instead save a dataset containing the preprocessed"
                               " activities with how much time the agents spent at them. The script won't convert the"
                               " activity times to periods.")
     (options, args) = optparser.parse_args()
+    if len(args) == 0:
+        optparser.print_help()
+        raise ValueError("Please provide the path to the activities dataset")
 
     print(f"Beginning preprocessing with a chunksize of {options.chunksize}...")
     # We'll write in the results file in 'append' mode, hence not overwriting the file
@@ -61,37 +58,13 @@ if __name__ == "__main__":
         print("The destination file ", options.output_file, " already exists.")
         sys.exit(0)
 
-    # We've got the age of every individual (i.e. id) in the attributes file.
-    # Nonetheless, we won't use the raw age but the age group.
-    population_data = pd.read_csv(MATSIM_ATTRIBUTES_PATH, usecols=['id', 'age'])
-    # Fetches the id-age association
-    id_age_df = population_data[['id', 'age']].drop_duplicates().set_index('id')
-    if options.age_groups:
-        # Creates the age groups
-        age_intervals = pd.DataFrame({'From': [0, 10, 20, 36, 51, 65], 'To': [9, 19, 35, 50, 64, 150],
-                                      'Group': ['0-9', '10-19', '20-35', '36-50', '51-64', '65-']})
-        # Converts to pandas IntervalIndex objects which will automatically be mapped to the age column
-        age_intervals = age_intervals.set_index(pd.IntervalIndex.from_arrays(age_intervals['From'],
-                                                                             age_intervals['To'], closed="both"))[
-            'Group']
-
     # We process the CSV chunkwise as it is usually too large to fit in memory
     # The "header" variable will make pandas write the DF's header row, but only the first time
     write_header = True
-    with pd.read_csv(MATSIM_ACTIVITIES_PATH, index_col=0, chunksize=options.chunksize) as full_csv:
+    with pd.read_csv(args[0], index_col=0, chunksize=options.chunksize) as full_csv:
         for it, activities_df in tqdm(enumerate(full_csv), total=42000000 / options.chunksize):
             # We'll need to remove the rows in which the facility is null
             activities_df = activities_df[activities_df['facility'].notna()]
-            # Removes unused columns
-            activities_df = activities_df.drop(['link', 'x', 'y'], axis=1)
-
-            # ADDING THE AGE
-            # The following adds the raw age to the dataframe
-            activities_df = activities_df.merge(id_age_df, left_on="id", right_index=True)
-            if options.age_groups:
-                activities_df['age_group'] = activities_df['age'].map(age_intervals)
-                # We won't need the raw age any longer.
-                activities_df = activities_df.drop('age', axis=1)
 
             # PREPROCESSING THE ACTIVITY TIME
             # Some activities do not have a starting nor an ending time (NaN), to indicate that they haven't started
