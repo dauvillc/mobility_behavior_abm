@@ -325,12 +325,16 @@ class ABM:
         # for all still infected agents, reduce their recovery time by one period
         self.infection_timer[infected_agents] -= 1
 
-    def reduce_mobility(self, agent_ids, duration_days=0, duration_periods=0):
+    def reduce_mobility(self, agent_ids=None, activity_types=None, duration_days=0, duration_periods=0):
         """
-        Reduces the mobility of a set of agents, for a given duration.
+        Reduces the mobility of a set of agents over given activity types, for a given duration.
         Parameters
         ----------
-        agent_ids: ndarray of integers, IDs of the targeted agents.
+        agent_ids: ndarray of integers optional. IDs of the targeted agents.
+            If None (default), all agents will be affected.
+        activity_types: str or list of str, optional. Indicates which activity type(s) should
+            be targeted.
+            Defaults to None, which means activities of any type will be changed.
         duration_days: integer, optional. Duration of the reduction in days. Defaults
             to zero, but cannot be equal to zero if duration_periods is 0 or not specified.
         duration_periods: integer, optional. Duration of the reduction in periods.
@@ -350,6 +354,9 @@ class ABM:
             raise ValueError(
                 f"duration_periods cannot be superior to the number of periods "
                 f"within a day (got {duration_periods} but n_periods={self.n_periods}).")
+        # If the agents were not specified, create an array "agent_ids" containing all IDs:
+        if agent_ids is None:
+            agent_ids = np.arange(self.n_agents)
         # First: reduce the mobility of the targeted agents using the methods of Population:
         # "confining" an agent is equivalent to setting its location to 0:
         self.population.change_agent_locations(agent_ids, 0)
@@ -418,6 +425,9 @@ class ABM:
             # IDs of the currently infected agents
             self.results.store("infected agents IDs",
                                self.population.get_infected_agents())
+            # IDs of the newly infected agents
+            self.results.store("newly infected agents IDs",
+                               infected_agents)
 
             # === Variables update ====================
             self.period = (1 + self.period) % self.n_periods
